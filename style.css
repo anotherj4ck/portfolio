@@ -1,0 +1,111 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+  --bg: #faf8f4;
+  --bg2: #f0ece3;
+  --accent: #2c2c2a;
+  --muted: #888780;
+  --border: rgba(44, 44, 42, 0.12);
+}
+
+body {
+    background: var(--bg);
+    color: var(--accent);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.7;
+}
+
+nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    border-bottom: 0.5px solid var(--border);
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.logo-img {
+  height: 55px;
+  width: auto;
+}
+
+.nav-pseudo {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+nav ul li a {
+    font-size: 13px;
+    color: var(--muted)
+    text-decoration: none;
+}
+
+nav ul li a:hover {
+    color: var(--accent);
+}
+
+section {
+    padding: 5rem 2rem;
+    max-width: 860px;
+    margin: 0 auto;
+}
+
+section + section {
+    border-top: 0.5px solid var(--border);
+}
+
+.hero h1 {
+    font-size: 2.4rem;
+    font-weight: 500;
+    line-height: 1.2;
+    margin-bottom: 1rem;
+}
+
+.hero p {
+    font-size: 1rem;
+    color: var(--muted);
+    max-width: 480px;
+}
+
+.section-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+}
+
+.about-text {
+    font-size: 1rem;
+    line-height: 1.8;
+    max-width: 600px;
+}
+
+.skill-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.skill-tag {
+  font-size: 12px;
+  padding: 5px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg2);
+  color: var(--accent);
+}
