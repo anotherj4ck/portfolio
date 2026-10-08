@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>anotherj4ck</title>
+  <meta name="description" content="Portfolio d'anotherj4ck : projets systèmes et réseaux, et écriture.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="ident">
+  <h1 id="who">anotherj4ck</h1>
+  <p id="role"></p>
+  <ul class="ident-links">
+    <li><a id="li-link" href="https://www.linkedin.com/in/gael-rautureau-a5357a439" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" aria-hidden="true" width="16" height="16"><path fill="currentColor" d="M0 1.15C0 .52.52 0 1.18 0h13.64C15.48 0 16 .52 16 1.15v13.7c0 .63-.52 1.15-1.18 1.15H1.18C.52 16 0 15.48 0 14.85V1.15zM4.85 13.4V6.17H2.44v7.23h2.41zM3.65 5.18c.84 0 1.36-.56 1.36-1.25-.02-.71-.52-1.25-1.35-1.25-.82 0-1.36.54-1.36 1.25 0 .69.52 1.25 1.33 1.25h.02zm2.53 8.22h2.4V9.36c0-.22.02-.43.08-.59.18-.43.57-.88 1.24-.88.87 0 1.22.66 1.22 1.64v3.87h2.4V9.25c0-2.22-1.18-3.25-2.77-3.25-1.28 0-1.84.7-2.16 1.2v.02h-.01l.01-.02V6.17h-2.4c.03.68 0 7.23 0 7.23z"/></svg><span>LinkedIn</span></a></li>
+    <li><a id="gh-top" href="https://github.com/anotherj4ck" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" aria-hidden="true" width="16" height="16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a></li>
+  </ul>
+</header>
+
+<div class="scene" id="scene" aria-hidden="true">
+  <canvas id="gl"></canvas>
+  <div class="labels" id="labels"></div>
+</div>
+
+<p class="hint" id="hint">Survole une sphère pour voir ses projets, clique pour les ouvrir.</p>
+
+<div class="toolbar">
+  <button class="btn" id="btn-list" aria-expanded="false" aria-controls="list">Vue liste</button>
+</div>
+
+<aside class="card" id="card" role="dialog" aria-modal="false" aria-labelledby="card-title" hidden>
+  <button class="close" id="card-close" aria-label="Fermer">×</button>
+  <div id="card-body"></div>
+</aside>
+
+<section class="list" id="list" aria-labelledby="list-title" hidden>
+  <div class="list-inner">
+    <div class="list-head">
+      <h2 id="list-title">Tous les projets</h2>
+      <button class="close" id="list-close" aria-label="Fermer la vue liste">×</button>
+    </div>
+    <div id="list-body"></div>
+    <p class="list-foot"><a id="li-foot" href="https://www.linkedin.com/in/gael-rautureau-a5357a439" target="_blank" rel="noopener">Mon profil LinkedIn</a> · <a id="gh-link" href="https://github.com/anotherj4ck" target="_blank" rel="noopener">Mon profil GitHub</a></p>
+  </div>
+</section>
+
+<p class="notice" id="notice" hidden></p>
+
+<!-- Three.js r128 : dernière version distribuée en script classique (UMD). Pas besoin d'outil de build. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

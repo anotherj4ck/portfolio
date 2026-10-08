@@ -1,0 +1,395 @@
+/* Concept : une nuit profonde où deux astres reliés, Développement et Écriture,
+   tiennent leurs projets en orbite. La scène occupe tout l'écran ; le texte
+   flotte par-dessus, en panneaux discrets.
+   Thème sombre assumé (choix de direction artistique, pas d'oubli). */
+:root {
+  color-scheme: dark;
+
+  --bg:       #0a1119;   /* nuit bleutée, tirée vers le cyan */
+  --panel:    rgba(16, 26, 36, .86);
+  --line:     #24384a;
+  --ink:      #e2eaf1;
+  --ink-dim:  #93a4b4;
+  --dev:      #5ccbe2;   /* cyan : réseau, systèmes */
+  --ecriture: #f1a94e;   /* ambre : encre, lampe de bureau */
+
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --step--1: .8125rem;
+  --step-0: 1rem;
+  --step-1: 1.25rem;
+  --step-2: 1.75rem;
+  --step-3: 2.5rem;
+
+  --gutter: 16px;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 var(--step-0)/1.55 var(--font-body);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--dev);
+  outline-offset: 3px;
+}
+
+/* ---------- Scène ---------- */
+.scene {
+  position: fixed;
+  inset: 0;
+}
+#gl {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+#gl.is-dragging { cursor: grabbing; }
+#gl.is-pointing { cursor: pointer; }
+
+.labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.lbl {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  transition: opacity .35s ease;
+  will-change: transform;
+}
+.lbl-hub {
+  font: 600 var(--step-2)/1 var(--font-display);
+  letter-spacing: .01em;
+  text-shadow: 0 0 18px rgba(10, 17, 25, .9);
+}
+.lbl-hub.c-dev { color: var(--dev); }
+.lbl-hub.c-ecriture { color: var(--ecriture); }
+.lbl-project {
+  font: 500 var(--step-0)/1.2 var(--font-body);
+  color: var(--ink);
+  text-shadow: 0 0 10px var(--bg), 0 0 4px var(--bg);
+}
+.lbl-project small {
+  display: block;
+  font-weight: 400;
+  font-size: var(--step--1);
+  color: var(--ink-dim);
+}
+.lbl-skill {
+  font: 400 var(--step--1)/1 var(--font-body);
+  color: var(--ink-dim);
+  text-shadow: 0 0 8px var(--bg);
+}
+
+/* ---------- Identité ---------- */
+.ident {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 20px);
+  left: var(--gutter);
+  right: var(--gutter);
+  max-width: min(34rem, calc(100% - 27rem));
+  pointer-events: none;
+  z-index: 2;
+}
+.ident h1 {
+  margin: 0;
+  font: 600 var(--step-3)/1 var(--font-display);
+  font-variation-settings: "opsz" 144;
+  letter-spacing: -.01em;
+}
+.ident-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin: .9rem 0 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: auto;   /* le bandeau laisse passer la souris, sauf sur les liens */
+}
+.ident-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  font: 500 var(--step--1)/1 var(--font-body);
+  color: var(--ink);
+  text-decoration: none;
+  padding: .5rem .85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+}
+.ident-links a:hover { border-color: var(--ink-dim); }
+.ident-links svg { flex-shrink: 0; }
+.ident p {
+  margin: .5rem 0 0;
+  max-width: 30rem;
+  color: var(--ink-dim);
+  text-wrap: pretty;
+}
+
+.hint {
+  position: fixed;
+  left: var(--gutter);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  margin: 0;
+  max-width: calc(100% - 2 * var(--gutter) - 8rem);
+  font-size: var(--step--1);
+  color: var(--ink-dim);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.toolbar {
+  position: fixed;
+  right: var(--gutter);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  z-index: 3;
+}
+
+.btn {
+  font: 500 var(--step--1)/1 var(--font-body);
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: .7rem 1.1rem;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+.btn:hover { border-color: var(--ink-dim); }
+
+/* Bouton d'action dans les cartes */
+.act {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font: 500 var(--step--1)/1 var(--font-body);
+  text-decoration: none;
+  padding: .65rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+.act:hover { border-color: var(--ink-dim); }
+.act.primary {
+  background: var(--accent, var(--dev));
+  border-color: transparent;
+  color: var(--bg);
+}
+.act.primary:hover { filter: brightness(1.08); }
+
+.close {
+  position: absolute;
+  top: .6rem;
+  right: .6rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.close:hover { color: var(--ink); background: rgba(255, 255, 255, .06); }
+
+/* ---------- Carte (projet ou sphère) ---------- */
+.card {
+  position: fixed;
+  z-index: 4;
+  top: calc(env(safe-area-inset-top, 0px) + 20px);
+  right: var(--gutter);
+  width: min(24rem, calc(100% - 2 * var(--gutter)));
+  max-height: calc(100% - 100px);
+  overflow-y: auto;
+  padding: 1.4rem 1.4rem 1.5rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent, var(--dev));
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .45);
+}
+.card.c-dev, .proj.c-dev { --accent: var(--dev); }
+.card.c-ecriture, .proj.c-ecriture { --accent: var(--ecriture); }
+
+.card .kicker {
+  margin: 0 0 .35rem;
+  font-size: var(--step--1);
+  color: var(--accent);
+}
+.card h2 {
+  margin: 0 2rem .6rem 0;
+  font: 600 var(--step-2)/1.15 var(--font-display);
+  text-wrap: balance;
+}
+.card p { margin: 0 0 1rem; }
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin: 0 0 1.2rem;
+  padding: 0;
+  list-style: none;
+}
+.chips li {
+  font-size: var(--step--1);
+  padding: .2rem .6rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.repo-path {
+  display: block;
+  margin-top: 1rem;
+  font: 400 var(--step--1)/1.4 var(--font-mono);
+  color: var(--ink-dim);
+  overflow-wrap: anywhere;
+}
+
+.status {
+  display: inline-block;
+  font-size: var(--step--1);
+  padding: .15rem .55rem;
+  border-radius: 999px;
+  border: 1px dashed var(--accent);
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+/* Projets listés dans la carte d'une sphère et dans la vue liste */
+.proj-list {
+  display: grid;
+  gap: .75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.proj {
+  padding: .9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 0;
+}
+.proj h3 {
+  margin: 0 0 .25rem;
+  font: 600 var(--step-1)/1.2 var(--font-display);
+}
+.proj p {
+  margin: 0 0 .75rem;
+  color: var(--ink-dim);
+}
+.proj .actions .act { padding: .5rem .85rem; }
+button.proj-open {
+  all: unset;
+  cursor: pointer;
+}
+button.proj-open:hover h3 { color: var(--accent); }
+button.proj-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+
+/* ---------- Vue liste ---------- */
+.list {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  overflow-y: auto;
+  background: rgba(10, 17, 25, .94);
+  backdrop-filter: blur(6px);
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) var(--gutter) calc(env(safe-area-inset-bottom, 0px) + 32px);
+}
+.list-inner {
+  position: relative;
+  max-width: 46rem;
+  margin: 0 auto;
+}
+.list-head {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+.list-head h2 {
+  margin: 0;
+  font: 600 var(--step-3)/1.05 var(--font-display);
+}
+.list-head .close { top: 0; right: 0; }
+.group { margin-bottom: 2rem; }
+.group h3.group-title {
+  margin: 0 0 .25rem;
+  font: 600 var(--step-2)/1.1 var(--font-display);
+  color: var(--accent);
+}
+.group > p {
+  margin: 0 0 1rem;
+  color: var(--ink-dim);
+}
+.group.c-dev { --accent: var(--dev); }
+.group.c-ecriture { --accent: var(--ecriture); }
+.list-foot { color: var(--ink-dim); }
+
+.notice {
+  position: fixed;
+  z-index: 6;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(28rem, calc(100% - 2 * var(--gutter)));
+  margin: 0;
+  padding: 1.2rem 1.4rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* ---------- Téléphone ---------- */
+@media (max-width: 640px) {
+  :root {
+    --step-2: 1.4rem;
+    --step-3: 2rem;
+  }
+  .ident { max-width: none; }
+  .ident p { font-size: var(--step--1); }
+  /* La carte devient un tiroir en bas d'écran */
+  .card {
+    top: auto;
+    left: var(--gutter);
+    right: var(--gutter);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+    width: auto;
+    max-height: 62%;
+  }
+  .hint { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lbl { transition: none; }
+}

@@ -1,0 +1,12 @@
+# Système
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Éditeur
+.vscode/
+*.swp
+
+# Brouillons et secrets : ne jamais publier
+*.local.*
+.env

@@ -1,0 +1,216 @@
+{
+  "profile": {
+    "name": "anotherj4ck",
+    "role": "En formation Technicien d'Assistance en Informatique, en route vers le TSSR. Un esprit aux mille idées : je construis des mondes, et j'analyse le mien en permanence.",
+    "github": "https://github.com/anotherj4ck",
+    "linkedin": "https://www.linkedin.com/in/gael-rautureau-a5357a439"
+  },
+  "nodes": [
+    {
+      "id": "dev",
+      "type": "hub",
+      "title": "Développement",
+      "short": "Systèmes, réseaux et petits outils web pour comprendre ce qui se passe dans les câbles.",
+      "color": "dev"
+    },
+    {
+      "id": "ecriture",
+      "type": "hub",
+      "title": "Écriture",
+      "short": "Romans, univers et worldbuilding.",
+      "color": "ecriture"
+    },
+    {
+      "id": "voyage",
+      "type": "project",
+      "hub": "dev",
+      "title": "Le Voyage du Paquet",
+      "short": "Suivre une réponse web du serveur jusqu'au PC, en 3D.",
+      "description": "Une visite guidée en dix étapes : encapsulation, routage, NAT, ARP et commutation, avec un inspecteur de paquet inspiré de Wireshark. Le mini-jeu « Trouve la panne » met tout ça en pratique : câble débranché, mauvais masque, passerelle erronée.",
+      "tech": [
+        "Three.js",
+        "JavaScript",
+        "HTML/CSS"
+      ],
+      "site": "https://anotherj4ck.github.io/le-voyage-du-paquet/",
+      "repo": "https://github.com/anotherj4ck/le-voyage-du-paquet"
+    },
+    {
+      "id": "osi",
+      "type": "project",
+      "hub": "dev",
+      "title": "OSI & TCP/IP",
+      "short": "Les couches réseau, décortiquées une par une.",
+      "description": "Les sept couches du modèle OSI avec leur rôle, leur unité de données et les protocoles qu'on croise en lab. Une animation de l'encapsulation, le passage d'OSI à TCP/IP, et un quiz pour s'auto-évaluer.",
+      "tech": [
+        "JavaScript",
+        "HTML/CSS"
+      ],
+      "site": "https://anotherj4ck.github.io/osi-tcpip/",
+      "repo": "https://github.com/anotherj4ck/osi-tcpip"
+    },
+    {
+      "id": "auteur",
+      "type": "project",
+      "hub": "ecriture",
+      "title": "Site d'auteur",
+      "short": "Mes quatre univers de fiction, en un seul site.",
+      "description": "Ascendant, Le Labyrinthe des Âmes, Les Récits du Greatland et Ankoria 2099 : pour chaque histoire, un extrait, un résumé et une ambiance visuelle propre. Les personnages s'ouvrent dans une visionneuse avec leur fiche.",
+      "tech": [
+        "HTML/CSS",
+        "JavaScript"
+      ],
+      "site": "https://anotherj4ck.github.io/auteur/",
+      "repo": "https://github.com/anotherj4ck/auteur"
+    },
+    {
+      "id": "codex",
+      "type": "project",
+      "hub": "ecriture",
+      "title": "Le Codex du Greatland",
+      "short": "L'archive de mon univers de fantasy.",
+      "description": "Les peuples et les demeures du Greatland, consignés en planches d'étude façon carnet ancien. Chaque planche s'ouvre en grand et se zoome pour lire les annotations.",
+      "tech": [
+        "JavaScript",
+        "HTML/CSS"
+      ],
+      "site": "https://anotherj4ck.github.io/auteur/codex.html",
+      "repo": "https://github.com/anotherj4ck/auteur"
+    },
+    {
+      "id": "threejs",
+      "type": "skill",
+      "title": "Three.js"
+    },
+    {
+      "id": "js",
+      "type": "skill",
+      "title": "JavaScript"
+    },
+    {
+      "id": "htmlcss",
+      "type": "skill",
+      "title": "HTML/CSS"
+    },
+    {
+      "id": "modele-osi",
+      "type": "skill",
+      "title": "Modèle OSI"
+    },
+    {
+      "id": "routage",
+      "type": "skill",
+      "title": "Routage & NAT"
+    },
+    {
+      "id": "depannage",
+      "type": "skill",
+      "title": "Dépannage réseau"
+    },
+    {
+      "id": "narration",
+      "type": "skill",
+      "title": "Narration"
+    },
+    {
+      "id": "worldbuilding",
+      "type": "skill",
+      "title": "Worldbuilding"
+    }
+  ],
+  "links": [
+    {
+      "source": "dev",
+      "target": "ecriture",
+      "kind": "bridge"
+    },
+    {
+      "source": "dev",
+      "target": "voyage"
+    },
+    {
+      "source": "dev",
+      "target": "osi"
+    },
+    {
+      "source": "ecriture",
+      "target": "auteur"
+    },
+    {
+      "source": "ecriture",
+      "target": "codex"
+    },
+    {
+      "source": "voyage",
+      "target": "threejs"
+    },
+    {
+      "source": "voyage",
+      "target": "js"
+    },
+    {
+      "source": "voyage",
+      "target": "htmlcss"
+    },
+    {
+      "source": "voyage",
+      "target": "routage"
+    },
+    {
+      "source": "voyage",
+      "target": "depannage"
+    },
+    {
+      "source": "voyage",
+      "target": "modele-osi"
+    },
+    {
+      "source": "voyage",
+      "target": "narration"
+    },
+    {
+      "source": "osi",
+      "target": "js"
+    },
+    {
+      "source": "osi",
+      "target": "htmlcss"
+    },
+    {
+      "source": "osi",
+      "target": "modele-osi"
+    },
+    {
+      "source": "auteur",
+      "target": "worldbuilding"
+    },
+    {
+      "source": "auteur",
+      "target": "narration"
+    },
+    {
+      "source": "ecriture",
+      "target": "narration"
+    },
+    {
+      "source": "ecriture",
+      "target": "worldbuilding"
+    },
+    {
+      "source": "auteur",
+      "target": "htmlcss"
+    },
+    {
+      "source": "auteur",
+      "target": "js"
+    },
+    {
+      "source": "codex",
+      "target": "worldbuilding"
+    },
+    {
+      "source": "codex",
+      "target": "js"
+    }
+  ]
+}
