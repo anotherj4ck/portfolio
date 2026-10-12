@@ -50,6 +50,20 @@
       "repo": "https://github.com/anotherj4ck/osi-tcpip"
     },
     {
+      "id": "tickets",
+      "type": "project",
+      "hub": "dev",
+      "title": "Simulation d'assistance",
+      "short": "S'entraîner à traiter des demandes et à créer des tickets.",
+      "description": "Un outil d'entraînement pour les techniciens d'assistance : des utilisateurs appellent, écrivent ou passent au bureau, et l'apprenant choisit sa réponse puis crée le ticket dans un outil inspiré de GLPI (type, source, catégorie, urgence, impact, priorité calculée). Deux notes séparées, relation utilisateur et qualification du ticket, et un rapport final pour le formateur.",
+      "tech": [
+        "JavaScript",
+        "HTML/CSS"
+      ],
+      "site": "https://anotherj4ck.github.io/simulation-assistance-tickets/",
+      "repo": "https://github.com/anotherj4ck/simulation-assistance-tickets"
+    },
+    {
       "id": "auteur",
       "type": "project",
       "hub": "ecriture",
@@ -106,6 +120,16 @@
       "id": "depannage",
       "type": "skill",
       "title": "Dépannage réseau"
+    },
+    {
+      "id": "ticketing",
+      "type": "skill",
+      "title": "Ticketing (GLPI)"
+    },
+    {
+      "id": "relation-user",
+      "type": "skill",
+      "title": "Relation utilisateur"
     },
     {
       "id": "narration",
@@ -179,6 +203,34 @@
     {
       "source": "osi",
       "target": "modele-osi"
+    },
+    {
+      "source": "dev",
+      "target": "tickets"
+    },
+    {
+      "source": "tickets",
+      "target": "ticketing"
+    },
+    {
+      "source": "tickets",
+      "target": "relation-user"
+    },
+    {
+      "source": "tickets",
+      "target": "depannage"
+    },
+    {
+      "source": "tickets",
+      "target": "js"
+    },
+    {
+      "source": "tickets",
+      "target": "htmlcss"
+    },
+    {
+      "source": "tickets",
+      "target": "narration"
     },
     {
       "source": "auteur",
