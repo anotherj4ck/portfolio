@@ -23,13 +23,18 @@
   const COLORS = { dev: 0x5ccbe2, ecriture: 0xf1a94e, ego: 0x9b0f12, neutral: 0x93a4b4 };
   const HALO = { ego: 0xd01a1f };  // halo plus vif que la sphère (sinon, la couleur de la sphère)
   // Position des sphères principales, dans l'ordre de graph.json (Développement, Écriture, Ego).
-  // Paysage : un triangle, les deux mondes en haut et Ego en dessous, au centre.
-  // Portrait : une colonne en zigzag, pour que le lien Développement–Ego ne traverse pas Écriture.
+  // Paysage : un triangle pointe en haut, Ego au sommet, les deux mondes côte à côte en dessous.
+  // Portrait : Ego en haut, puis les deux mondes légèrement décalés en hauteur,
+  // pour que leurs étiquettes ne se chevauchent pas sur un écran étroit.
   const ANCHORS = {
-    landscape: [[-30, 9], [30, 9], [0, -22]],
-    portrait: [[-8, 30], [8, 2], [-1, -26]],
+    landscape: [[-30, -6], [30, -6], [0, 22]],
+    portrait: [[-11, -4], [11, -12], [0, 24]],
   };
   const RADIUS = { hub: 4.2, project: 1.7, skill: 0.85 };
+  // Ego n'a ni maillage ni anneaux : sans ce coup de pouce, il paraît deux fois plus petit
+  const EGO_SCALE = 1.4;
+  const EGO_CLEAR = 3;     // zone dégagée autour d'Ego, en rayons d'Ego
+  const ARC_LENGTH = 1.5;  // longueur des arcs (1 = réglage d'origine)
   const CHARGE = { hub: 3.2, project: 1.5, skill: 0.8 };
   const MASS   = { hub: 3, project: 1.2, skill: 0.8 };
   const REST   = { hub: 1, project: 0.45, skill: 0.22 };   // luminosité au repos
@@ -206,6 +211,8 @@
 
     // La sphère à effets (Ego) : arcs au survol, prise de contrôle au clic
     const ego = nodes.find((n) => n.type === 'hub' && n.effect === 'glitch') || null;
+    // Tout ce qui dépend du rayon suit : membrane, veines, arcs, halo, zone de clic, étiquette
+    if (ego) ego.r = RADIUS.hub * EGO_SCALE;
 
     /* ---------- Textes fixes ---------- */
     if (data.profile) {
@@ -452,7 +459,7 @@
       const pGeo = new THREE.BufferGeometry();
       pGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pads.length), 3));
       pGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pads.length), 3));
-      const padPoints = new THREE.Points(pGeo, new THREE.PointsMaterial(glowMat({ size: 1.2, map: glowTex })));
+      const padPoints = new THREE.Points(pGeo, new THREE.PointsMaterial(glowMat({ size: ego.r * 0.29, map: glowTex })));
       circuits.frustumCulled = padPoints.frustumCulled = false; // les points bougent avec la membrane
       ego.core.add(circuits, padPoints); // enfants de la sphère : même échelle qu'elle
       const delay = new Float32Array(nCirc);
@@ -573,7 +580,7 @@
       b.on = strong || i < 4 || (i < 6 && Math.random() < 0.5); // 4 à 6 éclairs, les 12 quand ils redoublent
       for (const line of b.lines) line.visible = b.on;
       if (!b.on) return;
-      b.flicker = 0.7 + Math.random() * 0.3;
+      b.flicker = 0.85 + Math.random() * 0.15;
 
       // L'éclair part d'une soudure au bout d'un circuit, de préférence tournée vers la caméra
       camera.getWorldDirection(arcView);
@@ -586,7 +593,7 @@
       // Il jaillit vers l'extérieur, ramené vers le plan de l'écran (sinon il part vers nous et paraît minuscule)
       arcDir.set(pDir[pad * 3], pDir[pad * 3 + 1], pDir[pad * 3 + 2]);
       arcDir.addScaledVector(arcView, -0.8 * arcDir.dot(arcView)).normalize();
-      const len = ego.r * (strong ? 1.4 + Math.random() * 1.6 : 0.7 + Math.random() * 1.1);
+      const len = ego.r * ARC_LENGTH * (strong ? 1.4 + Math.random() * 1.6 : 0.7 + Math.random() * 1.1);
       arcPts[0].set(pPos[pad * 3], pPos[pad * 3 + 1], pPos[pad * 3 + 2]).multiplyScalar(ego.r);
       arcPts[1].copy(arcPts[0]).addScaledVector(arcDir, len);
 
@@ -613,7 +620,7 @@
       for (let k = 0; k < count; k++) {
         pos.setXYZ(k, arcPts[k].x, arcPts[k].y, arcPts[k].z);
         // Presque blanc à la racine, rouge sombre à la pointe
-        const t = k / (count - 1), fade = 1 - 0.6 * t;
+        const t = k / (count - 1), fade = 1 - 0.45 * t;
         col.setXYZ(k, (1 - 0.15 * t) * fade, (0.85 - 0.75 * t) * fade, (0.8 - 0.68 * t) * fade);
       }
       pos.needsUpdate = col.needsUpdate = true;
@@ -633,9 +640,9 @@
         b.age += ms;
         if (b.age >= b.life) strike(b, i, strong);
         // Légère variation d'opacité pendant la courte vie de l'éclair
-        const op = b.flicker * (1 - 0.35 * (b.age / b.life));
+        const op = b.flicker * (1 - 0.25 * (b.age / b.life));
         b.coreMat.opacity = op;
-        b.edgeMat.opacity = op * 0.85;
+        b.edgeMat.opacity = op * 0.95;
       }
     }
 
@@ -702,13 +709,20 @@
 
     /* ---------- Placement initial et ancrages ---------- */
     let portrait = false;
+    const gravity = new THREE.Vector3(); // point vers lequel les projets et compétences sont attirés
     function placeAnchors() {
-      // Paysage : un triangle. Portrait (téléphone) : une colonne en zigzag (voir ANCHORS).
+      // Paysage : un triangle, Ego au sommet. Portrait (téléphone) : Ego en haut, les deux mondes dessous (voir ANCHORS).
       const table = portrait ? ANCHORS.portrait : ANCHORS.landscape;
       hubs.forEach((h, i) => {
         const [x, y] = table[i] || [0, 0];
         h.anchor = new THREE.Vector3(x, y, 0);
       });
+      // Les nuages de projets pendent sous Développement et Écriture, loin d'Ego qui est au-dessus
+      const worlds = hubs.filter((h) => h !== ego);
+      gravity.set(0, 0, 0);
+      for (const h of worlds) gravity.add(h.anchor);
+      gravity.multiplyScalar(1 / Math.max(worlds.length, 1));
+      if (ego) gravity.y -= portrait ? 10 : 14;
     }
 
     function initialLayout() {
@@ -776,9 +790,28 @@
       }
 
       for (const n of nodes) {
-        // 3. Ancrage des sphères, légère gravité vers le centre pour les autres
+        // 3. Ancrage des sphères, légère gravité vers le bas de la scène pour les autres.
+        // En paysage, elle tire à peine vers le centre en largeur : les nuages s'étalent
+        // vers les côtés extérieurs au lieu de s'empiler au milieu.
         if (n.anchor) n.force.add(tmp.subVectors(n.anchor, n.pos).multiplyScalar(K_ANCHOR * MASS.hub));
-        else n.force.add(tmp.copy(n.pos).multiplyScalar(-0.005));
+        else {
+          tmp.subVectors(gravity, n.pos);
+          n.force.x += tmp.x * (portrait ? 0.005 : 0.0015);
+          n.force.y += tmp.y * 0.005;
+          n.force.z += tmp.z * 0.005;
+        }
+
+        // 3 bis. Zone dégagée autour d'Ego : un nœud qui y entre est repoussé. La distance est
+        // mesurée dans le plan de l'écran (x, y), donc aucun nœud ne peut non plus passer devant lui.
+        if (ego && !n.anchor) {
+          const dx = n.pos.x - ego.pos.x, dy = n.pos.y - ego.pos.y;
+          const d = Math.sqrt(dx * dx + dy * dy) || 0.01, clear = ego.r * EGO_CLEAR;
+          if (d < clear) {
+            const f = ((clear - d) * 0.08) / d;
+            n.force.x += dx * f;
+            n.force.y += dy * f;
+          }
+        }
 
         // 4. Respiration : une petite dérive pour que la scène reste vivante
         if (drift) {
@@ -802,22 +835,34 @@
       focused: false,
     };
 
+    // Place prise par l'en-tête (en haut) et par les boutons (en bas), en pixels.
+    // Mesurée au chargement et au redimensionnement seulement, pas à chaque image.
+    let headerPx = 0;
+    const FOOTER_PX = 64;
+    function measureHeader() { headerPx = $('.ident').getBoundingClientRect().bottom + 16; }
+
     function computeFit() {
-      // Les deux sphères restent au centre de l'écran ; on recule assez pour tout voir
-      cam.center.set(0, 0, 0);
-      for (const h of hubs) cam.center.add(h.anchor);
-      cam.center.multiplyScalar(1 / Math.max(hubs.length, 1));
-      let halfX = 0, halfY = 0;
+      // Boîte qui contient tous les nœuds (Ego compte avec son halo)
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       for (const n of nodes) {
-        halfX = Math.max(halfX, Math.abs(n.pos.x - cam.center.x) + n.r);
-        halfY = Math.max(halfY, Math.abs(n.pos.y - cam.center.y) + n.r);
+        const r = n === ego ? n.r * 1.8 : n.r;
+        minX = Math.min(minX, n.pos.x - r); maxX = Math.max(maxX, n.pos.x + r);
+        minY = Math.min(minY, n.pos.y - r); maxY = Math.max(maxY, n.pos.y + r);
       }
-      halfX += 6; halfY += 6;
+      minX -= 6; maxX += 6; minY -= 6; maxY += 6;
+      const H = window.innerHeight;
+      const top = Math.min(headerPx / H, 0.45), bottom = FOOTER_PX / H;
       const t = Math.tan((camera.fov * Math.PI) / 360);
-      // Plus de marge verticale : le titre est en haut, les boutons en bas
-      const d = Math.max(halfX / (t * camera.aspect), (halfY * 1.3) / t) + 6;
-      // Sur téléphone, on accepte que les bords du nuage dépassent un peu : c'est plus lisible
-      return portrait ? d * 0.78 : d;
+      // Recul nécessaire : la largeur doit tenir dans l'écran, la hauteur dans la bande libre
+      // entre l'en-tête et les boutons (sinon Ego, tout en haut, passerait sous le titre)
+      const dX = (maxX - minX) / (2 * t * camera.aspect);
+      const dY = (maxY - minY) / (2 * t * (1 - top - bottom));
+      // Sur téléphone, on accepte que les bords du nuage dépassent un peu sur les côtés : c'est plus lisible
+      const d = Math.max(portrait ? dX * 0.78 : dX, dY) + 6;
+      // Le contenu est centré dans cette bande libre, pas dans tout l'écran
+      const viewH = 2 * d * t;
+      cam.center.set((minX + maxX) / 2, (minY + maxY) / 2 + ((top - bottom) / 2) * viewH, 0);
+      return d;
     }
 
     const right = new THREE.Vector3(), look = new THREE.Vector3();
@@ -854,7 +899,9 @@
       const wasPortrait = portrait;
       portrait = camera.aspect < 0.85;
       if (portrait !== wasPortrait) placeAnchors();
+      measureHeader();
     }
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(measureHeader);
     window.addEventListener('resize', resize);
     portrait = window.innerWidth / window.innerHeight < 0.85;
     resize();
@@ -1388,10 +1435,12 @@
         v2.copy(n.pos).addScaledVector(camera.up, n.r).project(camera);
         const pr = Math.abs((-v2.y * 0.5 + 0.5) * H - y);
         if (n.type === 'hub') {
-          // sous la sphère et son anneau ou maillage (≈ 1,9 × le rayon)
+          // Sous la sphère et son anneau ou maillage (≈ 1,9 × le rayon) ; Ego n'en a pas :
+          // sous sa membrane (≈ 1,1 × le rayon), au même écart visuel
           const half = (n.lw || 0) / 2;
           const hx = Math.min(Math.max(x, half + 8), W - half - 8);
-          n.label.style.transform = `translate(${hx}px, ${y + pr * 1.9 + 14}px) translate(-50%, 0)`;
+          const below = n.deco.length ? 1.9 : 1.15;
+          n.label.style.transform = `translate(${hx}px, ${y + pr * below + 14}px) translate(-50%, 0)`;
         } else {
           // À droite du nœud, ou à gauche s'il n'y a pas la place
           let lx = x + pr + 8;
