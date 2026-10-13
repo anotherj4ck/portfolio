@@ -1,6 +1,6 @@
 # anotherj4ck · portfolio
 
-Mon portfolio, sous forme de graphe 3D vivant. Deux sphères au centre : **Développement** et **Écriture**. Autour, mes projets et les compétences qu'ils mettent en pratique. On survole une sphère pour voir ses projets, on clique pour ouvrir une fiche avec le lien vers le site et vers le code.
+Mon portfolio, sous forme de graphe 3D vivant. Trois sphères au centre : **Développement** et **Écriture**, reliées par **Ego**. Autour, mes projets et les compétences qu'ils mettent en pratique. On survole une sphère pour voir ses projets, on clique pour ouvrir une fiche avec le lien vers le site et vers le code.
 
 **Démo :** https://anotherj4ck.github.io/
 
@@ -12,8 +12,9 @@ Mon portfolio, sous forme de graphe 3D vivant. Deux sphères au centre : **Déve
 - Survol d'une sphère : ses projets et leurs compétences s'allument, le reste s'estompe.
 - Clic sur un nœud : une fiche s'ouvre (description, technologies, liens).
 - Des petits « paquets » lumineux circulent sur les liens, en clin d'œil au réseau.
+- La sphère rouge, **Ego**, lance des arcs électriques au survol. Un clic, et il prend le contrôle de l'interface (titre brouillé, texte découpé, sphères éteintes), puis te parle sur un écran noir avant d'ouvrir son site. Sans aucun flash, et réduit à un simple fondu si le système demande moins d'animations.
 - Une **vue liste** sans 3D, pour aller vite, pour le clavier et les lecteurs d'écran.
-- Sur téléphone, le toucher remplace le survol et les deux sphères s'empilent verticalement.
+- Sur téléphone, le toucher remplace le survol (premier tap sur Ego : les arcs ; second tap : l'effet) et les sphères s'empilent en colonne.
 - Si le système demande de réduire les animations, la scène reste immobile.
 
 ## Ajouter un projet
@@ -85,6 +86,7 @@ Puis ouvrir http://localhost:8000. Dans VS Code, l'extension *Live Server* fait 
 - [Simulation d'assistance](https://github.com/anotherj4ck/simulation-assistance-tickets) : traiter des demandes d'utilisateurs et créer les tickets, avec notation.
 - [Site d'auteur](https://github.com/anotherj4ck/auteur) : mes quatre univers de fiction, avec galeries de personnages.
 - [Le Codex du Greatland](https://anotherj4ck.github.io/auteur/codex.html) : l'archive illustrée de mon univers de fantasy.
+- [Ego](https://github.com/anotherj4ck/ego) : un chatbot narratif où l'on affronte l'IA de mon roman *Ascendant*, avec une question libre traitée par une IA via un Cloudflare Worker.
 
 ## Licence
 

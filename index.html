@@ -50,6 +50,18 @@
 
 <p class="notice" id="notice" hidden></p>
 
+<!-- Prise de contrôle d'Ego (clic sur la sphère rouge) : teinte rouge, lignes de balayage, écran noir -->
+<div class="ego-fx" aria-hidden="true">
+  <div class="ego-tint"></div>
+  <div class="ego-scan"></div>
+  <div class="ego-veil">
+    <p class="ego-name">EGO</p>
+    <!-- La réplique s'écrit dans #ego-typed ; #ego-rest garde la place de la suite (invisible) pour que la ligne ne bouge pas -->
+    <p class="ego-line"><span id="ego-typed"></span><span class="ego-caret"></span><span class="ego-rest" id="ego-rest"></span></p>
+    <p class="ego-skip">Cliquer pour continuer</p>
+  </div>
+</div>
+
 <!-- Three.js r128 : dernière version distribuée en script classique (UMD). Pas besoin d'outil de build. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="main.js"></script>

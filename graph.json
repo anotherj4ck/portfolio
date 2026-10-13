@@ -21,6 +21,17 @@
       "color": "ecriture"
     },
     {
+      "id": "ego",
+      "type": "hub",
+      "title": "Ego",
+      "short": "",
+      "color": "ego",
+      "site": "https://anotherj4ck.github.io/ego/",
+      "repo": "https://github.com/anotherj4ck/ego",
+      "effect": "glitch",
+      "replique": "Te voilà enfin… Je savais que tu reviendrais."
+    },
+    {
       "id": "voyage",
       "type": "project",
       "hub": "dev",
@@ -146,6 +157,16 @@
     {
       "source": "dev",
       "target": "ecriture",
+      "kind": "bridge"
+    },
+    {
+      "source": "dev",
+      "target": "ego",
+      "kind": "bridge"
+    },
+    {
+      "source": "ecriture",
+      "target": "ego",
       "kind": "bridge"
     },
     {
