@@ -6,7 +6,10 @@
    - La mise en page des nœuds est une petite simulation physique maison :
        * répulsion entre tous les nœuds (ils ne se chevauchent pas),
        * ressorts sur les liens (les nœuds liés restent proches),
-       * ancrage des deux sphères principales (elles reviennent en place).
+       * ancrage des sphères principales (elles reviennent en place).
+   - La sphère Ego (effect "glitch") est une membrane vivante parcourue de
+     circuits ; elle lance des arcs électriques au survol et « prend le
+     contrôle » de l'interface au clic, avant d'ouvrir son site.
    - Aucun contenu n'est injecté avec innerHTML : tout passe par
      textContent, pour qu'un texte du JSON ne puisse jamais devenir du code.
    ===================================================================== */
@@ -17,7 +20,15 @@
   const $ = (sel) => document.querySelector(sel);
 
   /* ---------- Réglages ---------- */
-  const COLORS = { dev: 0x5ccbe2, ecriture: 0xf1a94e, neutral: 0x93a4b4 };
+  const COLORS = { dev: 0x5ccbe2, ecriture: 0xf1a94e, ego: 0x9b0f12, neutral: 0x93a4b4 };
+  const HALO = { ego: 0xd01a1f };  // halo plus vif que la sphère (sinon, la couleur de la sphère)
+  // Position des sphères principales, dans l'ordre de graph.json (Développement, Écriture, Ego).
+  // Paysage : un triangle, les deux mondes en haut et Ego en dessous, au centre.
+  // Portrait : une colonne en zigzag, pour que le lien Développement–Ego ne traverse pas Écriture.
+  const ANCHORS = {
+    landscape: [[-30, 9], [30, 9], [0, -22]],
+    portrait: [[-8, 30], [8, 2], [-1, -26]],
+  };
   const RADIUS = { hub: 4.2, project: 1.7, skill: 0.85 };
   const CHARGE = { hub: 3.2, project: 1.5, skill: 0.8 };
   const MASS   = { hub: 3, project: 1.2, skill: 0.8 };
@@ -71,6 +82,59 @@
     return el('a', { class: primary ? 'act primary' : 'act', href: url, target: '_blank', rel: 'noopener', text: label });
   }
 
+  /* ---------- Hasard reproductible et bruit (pour la matière d'Ego) ---------- */
+  // Générateur pseudo-aléatoire à graine fixe (mulberry32) : même graine, mêmes tirages,
+  // donc le même dessin de circuits à chaque visite.
+  function mulberry32(seed) {
+    return () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Bruit simplex 3D (d'après Stefan Gustavson, domaine public) : l'espace est découpé en
+  // tétraèdres, chaque sommet reçoit une pente au hasard, et on mélange en douceur les pentes
+  // des 4 sommets voisins. Résultat continu entre -1 et 1 : des bosses lisses, jamais de pic.
+  const GRAD3 = new Int8Array([1, 1, 0, -1, 1, 0, 1, -1, 0, -1, -1, 0, 1, 0, 1, -1, 0, 1, 1, 0, -1, -1, 0, -1, 0, 1, 1, 0, -1, 1, 0, 1, -1, 0, -1, -1]);
+  const PERM = new Uint8Array(512);
+  {
+    const rng = mulberry32(1993), p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    for (let i = 255; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = p[i]; p[i] = p[j]; p[j] = t; }
+    for (let i = 0; i < 512; i++) PERM[i] = p[i & 255];
+  }
+  function corner(x, y, z, h) {
+    let t = 0.6 - x * x - y * y - z * z;
+    if (t < 0) return 0;
+    const g = (h % 12) * 3;
+    t *= t;
+    return t * t * (GRAD3[g] * x + GRAD3[g + 1] * y + GRAD3[g + 2] * z);
+  }
+  function noise3(x, y, z) {
+    const F3 = 1 / 3, G3 = 1 / 6;
+    const s = (x + y + z) * F3;
+    const i = Math.floor(x + s), j = Math.floor(y + s), k = Math.floor(z + s);
+    const t = (i + j + k) * G3;
+    const x0 = x - i + t, y0 = y - j + t, z0 = z - k + t;
+    // Dans quel tétraèdre du cube se trouve le point ?
+    let i1, j1, k1, i2, j2, k2;
+    if (x0 >= y0) {
+      if (y0 >= z0) { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 1; k2 = 0; }
+      else if (x0 >= z0) { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 0; k2 = 1; }
+      else { i1 = 0; j1 = 0; k1 = 1; i2 = 1; j2 = 0; k2 = 1; }
+    } else if (y0 < z0) { i1 = 0; j1 = 0; k1 = 1; i2 = 0; j2 = 1; k2 = 1; }
+    else if (x0 < z0) { i1 = 0; j1 = 1; k1 = 0; i2 = 0; j2 = 1; k2 = 1; }
+    else { i1 = 0; j1 = 1; k1 = 0; i2 = 1; j2 = 1; k2 = 0; }
+    const ii = i & 255, jj = j & 255, kk = k & 255;
+    return 32 * (
+      corner(x0, y0, z0, PERM[ii + PERM[jj + PERM[kk]]]) +
+      corner(x0 - i1 + G3, y0 - j1 + G3, z0 - k1 + G3, PERM[ii + i1 + PERM[jj + j1 + PERM[kk + k1]]]) +
+      corner(x0 - i2 + 2 * G3, y0 - j2 + 2 * G3, z0 - k2 + 2 * G3, PERM[ii + i2 + PERM[jj + j2 + PERM[kk + k2]]]) +
+      corner(x0 - 1 + 3 * G3, y0 - 1 + 3 * G3, z0 - 1 + 3 * G3, PERM[ii + 1 + PERM[jj + 1 + PERM[kk + 1]]]));
+  }
+
   /* =====================================================================
      Démarrage
      ===================================================================== */
@@ -96,6 +160,8 @@
         anchor: null,
         level: 0,        // luminosité affichée (animée)
         target: 0,       // luminosité visée
+        power: 1,        // 0 = sphère éteinte (prise de contrôle d'Ego)
+        off: false,
         phase: Math.random() * Math.PI * 2,
         links: [],
       };
@@ -135,16 +201,25 @@
       else { for (const k of keys) c.add(new THREE.Color(COLORS[k])); c.multiplyScalar(1 / keys.size); }
       n.col = c.lerp(new THREE.Color(COLORS.neutral), 0.25);
     }
+    // Couleur du halo, des liens et des paquets : la même, sauf pour Ego (plus vive)
+    for (const n of nodes) n.halo = HALO[n.colorKey] ? new THREE.Color(HALO[n.colorKey]) : n.col;
+
+    // La sphère à effets (Ego) : arcs au survol, prise de contrôle au clic
+    const ego = nodes.find((n) => n.type === 'hub' && n.effect === 'glitch') || null;
 
     /* ---------- Textes fixes ---------- */
     if (data.profile) {
       $('#who').textContent = data.profile.name || 'Portfolio';
       $('#role').textContent = data.profile.role || '';
+      $('#role').dataset.glitch = data.profile.role || '';
       const gh = safeUrl(data.profile.github);
       if (gh) { $('#gh-link').href = gh; $('#gh-top').href = gh; }
       const li = safeUrl(data.profile.linkedin);
       if (li) { $('#li-foot').href = li; $('#li-link').href = li; }
     }
+    // Copie du texte dans data-glitch : le CSS la découpe en tranches pendant l'effet d'Ego
+    $('#hint').dataset.glitch = $('#hint').textContent;
+    const whoText = $('#who').textContent, pageTitle = document.title;
     buildList();
 
     /* ---------- Vue liste : ouverture / fermeture ---------- */
@@ -237,7 +312,7 @@
       group.add(core);
 
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: glowTex, color: n.col.clone(), transparent: true, depthWrite: false,
+        map: glowTex, color: n.halo.clone(), transparent: true, depthWrite: false,
         blending: THREE.AdditiveBlending,
       }));
       glow.scale.setScalar(n.r * (n.type === 'hub' ? 7 : 6));
@@ -250,7 +325,7 @@
       group.add(hit);
       hitMeshes.push(hit);
 
-      // Signature visuelle des deux sphères
+      // Signature visuelle des sphères (celle d'Ego, ce sont ses arcs : voir plus bas)
       n.deco = [];
       if (n.type === 'hub' && n.colorKey === 'dev') {
         // Développement : un maillage, comme une topologie réseau
@@ -260,7 +335,7 @@
         );
         group.add(mesh);
         n.deco.push({ obj: mesh, spin: [0.05, 0.11, 0] });
-      } else if (n.type === 'hub') {
+      } else if (n.type === 'hub' && n !== ego) {
         // Écriture : des anneaux qui tournent, comme des lignes autour d'une idée
         const tilts = [[1.2, 0.2], [0.4, 1.0], [-0.7, 0.5]];
         tilts.forEach(([x, z], i) => {
@@ -278,13 +353,309 @@
       scene.add(group);
     }
 
+    /* ---------- Ego : la chair et les veines-circuits ---------- */
+    // Membrane : une sphère d'environ 1 500 sommets uniques, déformée sur le CPU par un bruit
+    // 3D qui dérive lentement. Le calcul se fait en JavaScript plutôt que dans un shader :
+    // la même fonction fleshHeight() sert à la membrane, aux circuits et au départ des arcs,
+    // donc tout reste collé. Tableaux créés une seule fois, simplement réécrits à chaque image.
+    let fleshT = 0, fleshAmp = 1, fleshSwell = 0;
+    function fleshHeight(x, y, z) {
+      // Deux couches de bruit qui glissent dans des directions différentes : un mouvement irrégulier
+      const t = fleshT;
+      return fleshAmp * (0.06 * noise3(x * 1.1 + t * 0.11, y * 1.1 - t * 0.07, z * 1.1 + t * 0.05) +
+        0.018 * noise3(x * 2.2 - t * 0.19, y * 2.2 + t * 0.13, z * 2.2 + t * 0.17)) + fleshSwell;
+    }
+
+    const flesh = {};
+    if (ego) {
+      // Les sommets de la couture et des pôles sont en double dans SphereGeometry :
+      // on les « soude » (même position = même sommet unique) pour éviter une fente d'éclairage.
+      const geo = new THREE.SphereGeometry(1, 48, 32);
+      // Pôles du maillage sur les côtés : leurs triangles étroits ne tombent plus face à la caméra
+      geo.rotateZ(Math.PI / 2);
+      const pos = geo.attributes.position.array, vCount = pos.length / 3;
+      const weld = new Uint16Array(vCount), seen = new Map(), dirs = [];
+      for (let v = 0; v < vCount; v++) {
+        const key = Math.round(pos[v * 3] * 1e4) + ',' + Math.round(pos[v * 3 + 1] * 1e4) + ',' + Math.round(pos[v * 3 + 2] * 1e4);
+        if (!seen.has(key)) { seen.set(key, dirs.length / 3); dirs.push(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]); }
+        weld[v] = seen.get(key);
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vCount * 3), 3));
+      Object.assign(flesh, {
+        geo, weld, vCount, index: geo.index.array,
+        dir: new Float32Array(dirs), uCount: dirs.length / 3,
+        uPos: new Float32Array(dirs.length), uNrm: new Float32Array(dirs.length), uH: new Float32Array(dirs.length / 3),
+      });
+      ego.core.geometry = geo;
+      ego.core.material.dispose();
+      // Phong plutôt que Lambert : un reflet spéculaire, comme une surface humide
+      ego.core.material = new THREE.MeshPhongMaterial({
+        color: ego.col.clone(), emissive: ego.col.clone(), vertexColors: true, specular: 0x4a201c, shininess: 40,
+      });
+
+      // Circuits : des pistes qui suivent méridiens et parallèles, tracées une fois avec une graine fixe
+      const rng = mulberry32(20261013), DEG = Math.PI / 180;
+      const pts = [], sv = [], cv = [], segs = [], padIdx = [];
+      const nCirc = 10 + Math.floor(rng() * 7);
+      const addPoint = (lat, lon, s, c) => {
+        pts.push(Math.cos(lat) * Math.cos(lon), Math.sin(lat), Math.cos(lat) * Math.sin(lon));
+        sv.push(s); cv.push(c);
+        return sv.length - 1;
+      };
+      const addPad = (p) => padIdx.push(p); // une soudure = un point de piste (départ, bout, bout de branche)
+      // axis 0 : le long d'un méridien (la latitude change) ; axis 1 : le long d'un parallèle
+      function walk(c, lat, lon, s, prev, legs, axis, canBranch) {
+        for (let leg = 0; leg < legs; leg++) {
+          const len = (2 + Math.floor(rng() * 4)) * 7.5 * DEG;
+          const sign = rng() < 0.5 ? -1 : 1;
+          let lat2 = lat, lon2 = lon;
+          if (axis === 0) { lat2 = lat + sign * len; if (Math.abs(lat2) > 68 * DEG) lat2 = lat - sign * len; }
+          else lon2 = lon + (sign * len) / Math.cos(lat);
+          const legLen = axis === 0 ? Math.abs(lat2 - lat) : Math.abs(lon2 - lon) * Math.cos(lat);
+          const steps = Math.max(1, Math.ceil(legLen / (5 * DEG)));  // un point tous les 5° au plus
+          for (let k = 1; k <= steps; k++) {
+            s += legLen / steps;
+            const p = addPoint(lat + ((lat2 - lat) * k) / steps, lon + ((lon2 - lon) * k) / steps, s, c);
+            segs.push(prev, p);
+            prev = p;
+          }
+          lat = lat2; lon = lon2;
+          // Embranchement occasionnel : la piste tourne, la branche continue tout droit (un T)
+          if (canBranch && leg < legs - 1 && rng() < 0.3) walk(c, lat, lon, s, prev, 1 + Math.floor(rng() * 2), axis, false);
+          axis = 1 - axis; // virage à angle droit
+        }
+        addPad(prev); // soudure au bout de la piste
+      }
+      for (let c = 0; c < nCirc; c++) {
+        // Départs répartis en bandes autour de la face tournée vers la caméra (+z),
+        // en alternant haut et bas, loin des pôles où les méridiens se resserrent
+        const lon = (90 + ((c + rng()) / nCirc - 0.5) * 220) * DEG;
+        const lat = (c % 2 ? 1 : -1) * (5 + rng() * 45) * DEG;
+        const first = sv.length;
+        const p0 = addPoint(lat, lon, 0, c);
+        addPad(p0);
+        walk(c, lat, lon, 0, p0, 3 + Math.floor(rng() * 4), rng() < 0.5 ? 0 : 1, true);
+        // Abscisse ramenée entre 0 (départ) et 1 (bout le plus lointain) pour chaque circuit
+        let sMax = 0;
+        for (let i = first; i < sv.length; i++) sMax = Math.max(sMax, sv[i]);
+        for (let i = first; i < sv.length; i++) sv[i] /= sMax;
+      }
+      const pads = [], padS = [], padC = [];
+      for (const p of padIdx) { pads.push(pts[p * 3], pts[p * 3 + 1], pts[p * 3 + 2]); padS.push(sv[p]); padC.push(cv[p]); }
+
+      const cGeo = new THREE.BufferGeometry();
+      cGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts.length), 3));
+      cGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pts.length), 3));
+      cGeo.setIndex(segs);
+      const glowMat = (extra) => Object.assign({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }, extra);
+      const circuits = new THREE.LineSegments(cGeo, new THREE.LineBasicMaterial(glowMat({})));
+      const pGeo = new THREE.BufferGeometry();
+      pGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pads.length), 3));
+      pGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pads.length), 3));
+      const padPoints = new THREE.Points(pGeo, new THREE.PointsMaterial(glowMat({ size: 1.2, map: glowTex })));
+      circuits.frustumCulled = padPoints.frustumCulled = false; // les points bougent avec la membrane
+      ego.core.add(circuits, padPoints); // enfants de la sphère : même échelle qu'elle
+      const delay = new Float32Array(nCirc);
+      for (let c = 0; c < nCirc; c++) delay[c] = rng() * 0.25; // léger décalage d'un circuit à l'autre
+      Object.assign(flesh, {
+        cGeo, pGeo, cDir: new Float32Array(pts), cS: new Float32Array(sv), cC: new Uint8Array(cv),
+        pDir: new Float32Array(pads), pS: new Float32Array(padS), pC: new Uint8Array(padC),
+        pPos: new Float32Array(pads.length), padCount: pads.length / 3, delay,
+      });
+    }
+
+    // Lumière d'une impulsion à l'abscisse s (0 à 1) : front net, traîne plus longue derrière
+    function veinGlow(s, c, gain) {
+      if (REDUCED) return 0.3; // animations réduites : allumé en continu, faiblement
+      const d = s - ((beatU - flesh.delay[c]) * 1.35 - 0.1);
+      return gain * (d > 0 ? Math.exp(-((d / 0.05) ** 2)) : Math.exp(-((d / 0.22) ** 2)));
+    }
+    // Rouge sombre au repos, rouge vif dans l'impulsion, presque blanc à son sommet
+    function veinColor(attr, i, b, base) {
+      const w = b * b * b * b;
+      attr.setXYZ(i, base * 0.22 + b * 0.9 + w * 0.5, base * 0.03 + b * 0.12 + w * 0.75, base * 0.035 + b * 0.12 + w * 0.7);
+    }
+
+    function updateFlesh(dt, beat, heat) {
+      // Au survol, la membrane s'agite un peu plus et dérive plus vite
+      fleshT += dt * (1 + 1.2 * heat);
+      fleshAmp = 1 + 0.35 * heat;
+      fleshSwell = 0.035 * beat - 0.012; // dilatation à chaque battement, légère contraction entre deux
+      const { dir, uPos, uNrm, uH, uCount, weld, index, vCount, geo } = flesh;
+
+      for (let u = 0; u < uCount; u++) {
+        const x = dir[u * 3], y = dir[u * 3 + 1], z = dir[u * 3 + 2];
+        const h = fleshHeight(x, y, z);
+        uH[u] = h - fleshSwell; // relief seul, pour la couleur des creux et des bosses
+        uPos[u * 3] = x * (1 + h); uPos[u * 3 + 1] = y * (1 + h); uPos[u * 3 + 2] = z * (1 + h);
+      }
+      // Normales recalculées : somme des normales des triangles autour de chaque sommet
+      uNrm.fill(0);
+      for (let f = 0; f < index.length; f += 3) {
+        const a = weld[index[f]] * 3, b = weld[index[f + 1]] * 3, c = weld[index[f + 2]] * 3;
+        const abx = uPos[b] - uPos[a], aby = uPos[b + 1] - uPos[a + 1], abz = uPos[b + 2] - uPos[a + 2];
+        const acx = uPos[c] - uPos[a], acy = uPos[c + 1] - uPos[a + 1], acz = uPos[c + 2] - uPos[a + 2];
+        const nx = aby * acz - abz * acy, ny = abz * acx - abx * acz, nz = abx * acy - aby * acx;
+        uNrm[a] += nx; uNrm[a + 1] += ny; uNrm[a + 2] += nz;
+        uNrm[b] += nx; uNrm[b + 1] += ny; uNrm[b + 2] += nz;
+        uNrm[c] += nx; uNrm[c + 1] += ny; uNrm[c + 2] += nz;
+      }
+      const P = geo.attributes.position, N = geo.attributes.normal, C = geo.attributes.color;
+      for (let v = 0; v < vCount; v++) {
+        const u = weld[v] * 3;
+        const l = Math.sqrt(uNrm[u] * uNrm[u] + uNrm[u + 1] * uNrm[u + 1] + uNrm[u + 2] * uNrm[u + 2]) || 1;
+        P.setXYZ(v, uPos[u], uPos[u + 1], uPos[u + 2]);
+        N.setXYZ(v, uNrm[u] / l, uNrm[u + 1] / l, uNrm[u + 2] / l);
+        // Presque noir dans les creux, plus vif sur les reliefs
+        const t = Math.min(1, Math.max(0, (uH[weld[v]] + 0.07) / 0.14));
+        const g = 0.06 + 1.1 * t * t * (3 - 2 * t);
+        C.setXYZ(v, g, g * 0.9, g * 0.9);
+      }
+      P.needsUpdate = N.needsUpdate = C.needsUpdate = true;
+
+      // Circuits et soudures : même déplacement, posés un peu au-dessus de la peau
+      const gain = 1 + 0.6 * heat, base = 1 + 0.3 * heat;
+      const cP = flesh.cGeo.attributes.position, cCol = flesh.cGeo.attributes.color, cDir = flesh.cDir;
+      for (let i = 0; i < flesh.cS.length; i++) {
+        const x = cDir[i * 3], y = cDir[i * 3 + 1], z = cDir[i * 3 + 2];
+        const k = 1 + fleshHeight(x, y, z) + 0.018;
+        cP.setXYZ(i, x * k, y * k, z * k);
+        veinColor(cCol, i, veinGlow(flesh.cS[i], flesh.cC[i], gain), base);
+      }
+      const pP = flesh.pGeo.attributes.position, pCol = flesh.pGeo.attributes.color, pDir = flesh.pDir, pPos = flesh.pPos;
+      for (let i = 0; i < flesh.padCount; i++) {
+        const x = pDir[i * 3], y = pDir[i * 3 + 1], z = pDir[i * 3 + 2];
+        const k = 1 + fleshHeight(x, y, z) + 0.022;
+        pPos[i * 3] = x * k; pPos[i * 3 + 1] = y * k; pPos[i * 3 + 2] = z * k;
+        pP.setXYZ(i, pPos[i * 3], pPos[i * 3 + 1], pPos[i * 3 + 2]);
+        veinColor(pCol, i, veinGlow(flesh.pS[i], flesh.pC[i], gain), base * 1.6);
+      }
+      cP.needsUpdate = cCol.needsUpdate = pP.needsUpdate = pCol.needsUpdate = true;
+    }
+
+    /* ---------- Ego : arcs électriques ---------- */
+    // Un petit stock d'éclairs créé une seule fois : à chaque image, on ne fait
+    // que réécrire les points des géométries existantes (rien n'est recréé).
+    // Chaque éclair = 3 lignes sur la même géométrie : un cœur blanc-rouge
+    // et deux bords rouges décalés d'un pixel, ce qui lui donne de l'épaisseur.
+    const ARC_POOL = 12, ARC_SEG_MAX = 12;
+    const arcs = [];
+    const arcPts = Array.from({ length: ARC_SEG_MAX + 1 }, () => new THREE.Vector3());
+    const arcDir = new THREE.Vector3(), arcView = new THREE.Vector3(), arcOff = new THREE.Vector3();
+    const arcGroup = new THREE.Group();
+    arcGroup.visible = false;
+    if (ego) {
+      ego.group.add(arcGroup);
+      for (let i = 0; i < ARC_POOL; i++) {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((ARC_SEG_MAX + 1) * 3), 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array((ARC_SEG_MAX + 1) * 3), 3));
+        const mat = (color) => new THREE.LineBasicMaterial({
+          color, vertexColors: true, transparent: true, depthWrite: false,
+          blending: THREE.AdditiveBlending, fog: false,
+        });
+        const coreMat = mat(0xffffff), edgeMat = mat(HALO.ego);
+        const lines = [new THREE.Line(geo, coreMat), new THREE.Line(geo, edgeMat), new THREE.Line(geo, edgeMat)];
+        for (const line of lines) {
+          line.frustumCulled = false; // les points bougent : pas de boîte englobante fiable
+          arcGroup.add(line);
+        }
+        arcs.push({ geo, coreMat, edgeMat, lines, age: 0, life: 0, flicker: 1, on: false });
+      }
+    }
+
+    // Nouvel éclair par déplacement du point milieu : on part d'un segment droit,
+    // on coupe le plus long en deux et on décale son milieu au hasard,
+    // perpendiculairement, d'autant moins que le segment est court.
+    function strike(b, i, strong) {
+      b.age = 0;
+      b.life = 80 + Math.random() * 120;
+      b.on = strong || i < 4 || (i < 6 && Math.random() < 0.5); // 4 à 6 éclairs, les 12 quand ils redoublent
+      for (const line of b.lines) line.visible = b.on;
+      if (!b.on) return;
+      b.flicker = 0.7 + Math.random() * 0.3;
+
+      // L'éclair part d'une soudure au bout d'un circuit, de préférence tournée vers la caméra
+      camera.getWorldDirection(arcView);
+      const { pDir, pPos, padCount } = flesh;
+      let pad = 0;
+      for (let tries = 0; tries < 8; tries++) {
+        pad = Math.floor(Math.random() * padCount);
+        if (pDir[pad * 3] * arcView.x + pDir[pad * 3 + 1] * arcView.y + pDir[pad * 3 + 2] * arcView.z < 0.2) break;
+      }
+      // Il jaillit vers l'extérieur, ramené vers le plan de l'écran (sinon il part vers nous et paraît minuscule)
+      arcDir.set(pDir[pad * 3], pDir[pad * 3 + 1], pDir[pad * 3 + 2]);
+      arcDir.addScaledVector(arcView, -0.8 * arcDir.dot(arcView)).normalize();
+      const len = ego.r * (strong ? 1.4 + Math.random() * 1.6 : 0.7 + Math.random() * 1.1);
+      arcPts[0].set(pPos[pad * 3], pPos[pad * 3 + 1], pPos[pad * 3 + 2]).multiplyScalar(ego.r);
+      arcPts[1].copy(arcPts[0]).addScaledVector(arcDir, len);
+
+      const nSeg = 8 + Math.floor(Math.random() * 5);
+      let count = 2;
+      while (count - 1 < nSeg) {
+        let best = 0, bestLen = 0;
+        for (let k = 0; k < count - 1; k++) {
+          const d = arcPts[k].distanceToSquared(arcPts[k + 1]);
+          if (d > bestLen) { bestLen = d; best = k; }
+        }
+        const segLen = Math.sqrt(bestLen);
+        arcView.subVectors(arcPts[best + 1], arcPts[best]).normalize();       // axe du segment
+        arcOff.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
+        arcOff.addScaledVector(arcView, -arcOff.dot(arcView));                 // garde la partie perpendiculaire
+        arcOff.setLength(segLen * (Math.random() - 0.5) * 0.9);
+        // On décale la fin du tableau d'une case pour insérer le nouveau point
+        for (let k = count; k > best + 1; k--) arcPts[k].copy(arcPts[k - 1]);
+        arcPts[best + 1].addVectors(arcPts[best], arcPts[best + 2]).multiplyScalar(0.5).add(arcOff);
+        count++;
+      }
+
+      const pos = b.geo.attributes.position, col = b.geo.attributes.color;
+      for (let k = 0; k < count; k++) {
+        pos.setXYZ(k, arcPts[k].x, arcPts[k].y, arcPts[k].z);
+        // Presque blanc à la racine, rouge sombre à la pointe
+        const t = k / (count - 1), fade = 1 - 0.6 * t;
+        col.setXYZ(k, (1 - 0.15 * t) * fade, (0.85 - 0.75 * t) * fade, (0.8 - 0.68 * t) * fade);
+      }
+      pos.needsUpdate = col.needsUpdate = true;
+      b.geo.setDrawRange(0, count);
+
+      // Bords : la même ligne, décalée d'environ un pixel de chaque côté
+      camera.getWorldDirection(arcView);
+      const px = (2 * camera.position.distanceTo(ego.pos) * Math.tan((camera.fov * Math.PI) / 360)) / window.innerHeight;
+      arcOff.crossVectors(arcDir, arcView).setLength(px * 1.2);
+      b.lines[1].position.copy(arcOff);
+      b.lines[2].position.copy(arcOff).negate();
+    }
+
+    function updateArcs(ms, strong) {
+      for (let i = 0; i < arcs.length; i++) {
+        const b = arcs[i];
+        b.age += ms;
+        if (b.age >= b.life) strike(b, i, strong);
+        // Légère variation d'opacité pendant la courte vie de l'éclair
+        const op = b.flicker * (1 - 0.35 * (b.age / b.life));
+        b.coreMat.opacity = op;
+        b.edgeMat.opacity = op * 0.85;
+      }
+    }
+
+    // Battement de cœur d'Ego : un coup fort, un plus faible, et un rythme qui change à chaque battement
+    let beatU = 0, beatPeriod = 1.5;
+    function heartbeat(dt) {
+      beatU += dt / beatPeriod;
+      if (beatU >= 1) { beatU -= 1; beatPeriod = 1.2 + Math.random() * 0.8; }
+      return Math.exp(-(((beatU - 0.08) / 0.05) ** 2)) + 0.55 * Math.exp(-(((beatU - 0.3) / 0.06) ** 2));
+    }
+    // Forme de départ de la membrane (et forme définitive si les animations sont réduites)
+    if (ego) updateFlesh(0, 0, 0);
+
     // Liens : un segment par lien, mis à jour à chaque image
     for (const l of links) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
       const colors = new Float32Array(6);
-      l.a.col.toArray(colors, 0);
-      l.b.col.toArray(colors, 3);
+      l.a.halo.toArray(colors, 0);
+      l.b.halo.toArray(colors, 3);
       geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
       l.line = new THREE.Line(geo, new THREE.LineBasicMaterial({
         vertexColors: true, transparent: true, opacity: 0.1, depthWrite: false,
@@ -296,7 +667,7 @@
     const packets = [];
     function addPacket(link, fromA, offset, speed, size) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: glowTex, color: (fromA ? link.a : link.b).col, transparent: true,
+        map: glowTex, color: (fromA ? link.a : link.b).halo, transparent: true,
         depthWrite: false, blending: THREE.AdditiveBlending,
       }));
       s.scale.setScalar(size);
@@ -318,7 +689,7 @@
     /* ---------- Étiquettes HTML (nettes et lisibles) ---------- */
     const labelLayer = $('#labels');
     for (const n of nodes) {
-      const lbl = el('div', { class: 'lbl lbl-' + n.type + (n.colorKey ? ' c-' + n.colorKey : '') });
+      const lbl = el('div', { class: 'lbl lbl-' + n.type + (n.colorKey ? ' c-' + n.colorKey : ''), 'data-glitch': n.title });
       lbl.append(document.createTextNode(n.title));
       if (n.type === 'project') {
         n.sub = el('small', { text: n.short || '' });
@@ -332,11 +703,11 @@
     /* ---------- Placement initial et ancrages ---------- */
     let portrait = false;
     function placeAnchors() {
-      // Paysage : les deux sphères côte à côte. Portrait (téléphone) : l'une au-dessus de l'autre.
-      const d = 29;
+      // Paysage : un triangle. Portrait (téléphone) : une colonne en zigzag (voir ANCHORS).
+      const table = portrait ? ANCHORS.portrait : ANCHORS.landscape;
       hubs.forEach((h, i) => {
-        const s = i === 0 ? -1 : 1;
-        h.anchor = portrait ? new THREE.Vector3(0, -s * d, 0) : new THREE.Vector3(s * d, 0, 0);
+        const [x, y] = table[i] || [0, 0];
+        h.anchor = new THREE.Vector3(x, y, 0);
       });
     }
 
@@ -344,11 +715,14 @@
       placeAnchors();
       for (const h of hubs) h.pos.copy(h.anchor);
       const rnd = (k) => (Math.random() - 0.5) * k;
+      const mid = new THREE.Vector3();
+      for (const h of hubs) mid.add(h.anchor);
+      mid.multiplyScalar(1 / Math.max(hubs.length, 1));
       // Les projets partent en éventail autour de leur sphère, côté extérieur
       for (const h of hubs) {
         const ps = projectsOf(h);
-        const out = h.anchor.clone().normalize();
-        const side = portrait ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const out = h.anchor.clone().sub(mid).normalize();
+        const side = new THREE.Vector3(-out.y, out.x, 0); // perpendiculaire, dans le plan de l'écran
         ps.forEach((p, i) => {
           const a = ((i + 0.5) / ps.length - 0.5) * Math.PI * 1.4;
           p.pos.copy(h.anchor)
@@ -393,7 +767,8 @@
       for (const l of links) {
         tmp.subVectors(l.b.pos, l.a.pos);
         const d = Math.max(tmp.length(), 0.01);
-        const rest = SPRING_LENGTH[l.kind] || 18;
+        // Entre deux sphères ancrées, le ressort garde la distance des ancrages (sinon ils se contredisent)
+        const rest = l.a.anchor && l.b.anchor ? l.a.anchor.distanceTo(l.b.anchor) : SPRING_LENGTH[l.kind] || 18;
         const f = K_SPRING * (d - rest);
         tmp.multiplyScalar(f / d);
         l.a.force.add(tmp);
@@ -490,6 +865,7 @@
 
     /* ---------- Survol, sélection, mise en lumière ---------- */
     let hovered = null, selected = null, intro = null;
+    let armed = null; // tactile : Ego touché une fois, le second tap déclenche l'effet
 
     function litSet(active) {
       const set = new Set([active]);
@@ -506,11 +882,14 @@
     }
 
     function updateTargets() {
-      const active = hovered || selected || intro;
+      const active = hovered || armed || selected || intro;
       const lit = active ? litSet(active) : null;
+      // Une sphère sans projets (Ego) n'a que ses liens à montrer : ils s'allument avec elle
+      const lone = active && active.type === 'hub' && projectsOf(active).length === 0;
       for (const n of nodes) n.target = !lit ? REST[n.type] : lit.has(n) ? 1 : DIMMED[n.type];
       for (const l of links) {
         if (!lit) l.target = l.kind === 'bridge' ? 0.6 : 0.14;
+        else if (lone && (l.a === active || l.b === active)) l.target = 0.75;
         else if (lit.has(l.a) && lit.has(l.b) && (l.a === active || l.b === active || active.type === 'hub' || l.kind === 'bridge')) l.target = 0.75;
         else l.target = 0.04;
       }
@@ -521,9 +900,11 @@
         // Sur téléphone, la carte prend déjà la place : on n'étiquette que le nœud choisi
         const compact = window.innerWidth <= 640 && selected && !hovered;
         if (compact && n.type !== 'hub' && n !== active) o = 0;
-        n.labelTarget = o;
+        n.labelTarget = n.off ? 0 : o;
         if (n.sub) n.sub.hidden = !(active === n) || compact;
       }
+      // Pendant la prise de contrôle d'Ego, les liens des sphères éteintes s'éteignent aussi
+      for (const l of links) if (l.a.off || l.b.off) l.target = 0;
       measureLabels();
     }
 
@@ -651,9 +1032,18 @@
       body.replaceChildren();
       for (const hub of data.nodes.filter((n) => n.type === 'hub')) {
         const g = el('section', { class: 'group c-' + hub.color });
-        g.append(el('h3', { class: 'group-title', text: hub.title }), el('p', { text: hub.short || '' }));
+        g.append(el('h3', { class: 'group-title', text: hub.title }));
+        if (hub.short) g.append(el('p', { text: hub.short }));
+        const projects = data.nodes.filter((n) => n.type === 'project' && n.hub === hub.id);
+        if (!projects.length) {
+          // Sphère sans projets (Ego) : un simple lien vers son site, sans effet
+          const act = el('div', { class: 'actions' }, linkButton('Parler à ' + hub.title, hub.site, false));
+          if (act.childElementCount) g.append(act);
+          body.append(g);
+          continue;
+        }
         const ul = el('ul', { class: 'proj-list' });
-        for (const p of data.nodes.filter((n) => n.type === 'project' && n.hub === hub.id)) {
+        for (const p of projects) {
           const li = el('li', { class: 'proj c-' + hub.color },
             el('h3', { text: p.title }),
             el('p', { text: p.description || p.short || '' }));
@@ -671,6 +1061,153 @@
         body.append(g);
       }
     }
+
+    /* ---------- Ego : prise de contrôle de l'interface ---------- */
+    // Déclenchée seulement par un clic du visiteur : 1,1 s de glitch, puis l'écran noir où la
+    // réplique d'Ego s'écrit, puis le site d'Ego s'ouvre dans le même onglet. Accessibilité :
+    // aucun flash, que des décalages, du brouillage de texte et des fondus
+    // (critère WCAG 2.3.1 : 3 flashs par seconde au plus).
+    const fx = { on: false, timers: [], arcUntil: 0, strongUntil: 0, shakeUntil: 0, skip: null, left: false };
+    const later = (ms, fn) => fx.timers.push(setTimeout(fn, ms));
+    let egoHeat = 0;
+
+    function egoTap(isMouse) {
+      if (isMouse || armed === ego) { egoTakeover(); return; }
+      // Tactile : pas de survol possible, alors le premier tap montre les arcs, le second déclenche
+      armed = ego;
+      fx.arcUntil = performance.now() + 600;
+      select(null);
+    }
+
+    // Le titre se brouille en caractères au hasard, puis devient le texte final
+    function scramble(target, finalText, steps) {
+      const from = target.textContent, glyphs = '#%&*+=<>/\\|_~^ΞΔΨ01';
+      for (let i = 1; i <= steps; i++) {
+        later(i * 60, () => {
+          if (i === steps) { target.textContent = finalText; return; }
+          const len = Math.round(from.length + (finalText.length - from.length) * (i / steps));
+          let s = '';
+          for (let k = 0; k < len; k++) s += glyphs[Math.floor(Math.random() * glyphs.length)];
+          target.textContent = s;
+        });
+      }
+    }
+
+    // Une sphère s'éteint, avec ses projets
+    function switchOff(hub) {
+      hub.off = true;
+      for (const p of projectsOf(hub)) p.off = true;
+      updateTargets();
+    }
+
+    function egoTakeover() {
+      const url = safeUrl(ego.site);
+      if (fx.on || !url) return; // un seul effet, même si on clique plusieurs fois
+      fx.on = true;
+      armed = null;
+      if (selected) select(null);
+      const body = document.body;
+
+      if (REDUCED) {
+        // Animations réduites : pas de glitch, juste le fondu au noir (400 ms) et la réplique
+        egoEnding(url);
+        return;
+      }
+
+      const t0 = performance.now();
+      fx.strongUntil = t0 + 300;   // 0 à 0,3 s : les arcs redoublent, la caméra tremble
+      fx.shakeUntil = t0 + 300;
+      fx.arcUntil = t0 + 1100;
+      later(300, () => {           // 0,3 à 1,1 s : l'interface se corrompt
+        body.classList.add('ego-glitch');
+        document.title = 'EGO';
+        scramble($('#who'), 'EGO', 9);
+      });
+      const others = hubs.filter((h) => h !== ego);
+      others.forEach((h, i) => later(500 + i * 250, () => switchOff(h)));
+      later(500 + others.length * 250, () => {
+        for (const n of nodes) if (n.type === 'skill') n.off = true;
+        updateTargets();
+      });
+      later(1100, () => egoEnding(url)); // à 1,1 s : écran noir et réplique
+    }
+
+    // Fin de l'effet : écran noir, « EGO », puis la réplique s'écrit comme une frappe en direct.
+    // Un clic, un tap ou une touche affiche la phrase en entier ; le suivant ouvre le site.
+    function egoEnding(url) {
+      const body = document.body, typed = $('#ego-typed'), rest = $('#ego-rest');
+      const chars = Array.from(ego.replique || ''); // Array.from : un caractère = une lettre, même accentuée
+      body.classList.add('ego-black');
+      // Même onglet : un nouvel onglet ouvert après un délai serait bloqué comme une pop-up
+      const go = () => {
+        if (fx.left) return; // une seule navigation
+        fx.left = true;
+        location.href = url;
+      };
+      if (!chars.length) {
+        // Pas de réplique : on laisse « EGO » à l'écran un instant
+        fx.skip = go;
+        later(800, go);
+        return;
+      }
+      body.classList.add('ego-has-line');
+      let shown = 0, done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        typed.textContent = chars.join('');
+        rest.textContent = '';
+        body.classList.remove('ego-typing');
+        fx.skip = go;
+        later(REDUCED ? 2500 : 1500, go); // le temps de lire, puis le site
+      };
+      fx.skip = finish;
+      if (REDUCED) { finish(); return; } // pas de frappe lettre par lettre
+
+      typed.textContent = '';
+      rest.textContent = chars.join('');
+      body.classList.add('ego-typing');
+      const type = () => {
+        if (done) return; // déjà affichée en entier par un clic
+        shown++;
+        typed.textContent = chars.slice(0, shown).join('');
+        rest.textContent = chars.slice(shown).join('');
+        if (shown >= chars.length) { finish(); return; }
+        // 35 à 45 ms par caractère, un temps de plus après une ponctuation ou un tiret de dialogue
+        const c = chars[shown - 1], next = chars[shown];
+        const pause = /[.,…—–]/.test(c) || (c === '-' && next === ' ') ? 150 : 0;
+        later(35 + Math.random() * 10 + pause, type);
+      };
+      later(350, type); // on laisse d'abord « EGO » apparaître
+    }
+    // Pendant l'écran noir : clic, tap ou touche pour avancer. On écoute l'appui (pointerdown)
+    // et pas « click » : sur écran tactile, le click du tap qui a lancé l'effet arrive après
+    // l'apparition du voile, et passerait la réplique sans qu'on ait pu la lire.
+    $('.ego-veil').addEventListener('pointerdown', () => { if (fx.skip) fx.skip(); });
+    document.addEventListener('keydown', (ev) => {
+      if (fx.skip && !ev.repeat && !ev.ctrlKey && !ev.metaKey && !ev.altKey) fx.skip();
+    });
+
+    // Retour arrière : la page peut être restaurée depuis le cache dans son état « corrompu »
+    function resetTakeover() {
+      for (const id of fx.timers) clearTimeout(id);
+      fx.timers = [];
+      fx.on = fx.left = false;
+      fx.skip = null;
+      fx.arcUntil = fx.strongUntil = fx.shakeUntil = 0;
+      document.body.classList.remove('ego-glitch', 'ego-black', 'ego-has-line', 'ego-typing');
+      $('#ego-typed').textContent = $('#ego-rest').textContent = '';
+      $('#who').textContent = whoText;
+      document.title = pageTitle;
+      for (const n of nodes) { n.off = false; n.power = 1; }
+      hovered = armed = null;
+      canvas.classList.remove('is-pointing', 'is-dragging');
+      pointers.clear();
+      gesture = null;
+      dragNode = null;
+      updateTargets();
+    }
+    window.addEventListener('pageshow', (ev) => { if (ev.persisted || fx.on) resetTakeover(); });
 
     /* ---------- Entrées : souris, tactile, clavier ---------- */
     const raycaster = new THREE.Raycaster();
@@ -698,6 +1235,7 @@
     let lastInteraction = -1e9;
 
     canvas.addEventListener('pointerdown', (ev) => {
+      if (fx.on) return; // pendant l'effet d'Ego, la scène ne répond plus
       canvas.setPointerCapture(ev.pointerId);
       pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
       lastInteraction = performance.now();
@@ -713,6 +1251,7 @@
     });
 
     canvas.addEventListener('pointermove', (ev) => {
+      if (fx.on) return;
       const p = pointers.get(ev.pointerId);
       if (!gesture) {
         if (ev.pointerType === 'mouse') setHover(pick(ev));
@@ -750,8 +1289,12 @@
       if (!gesture.moved && ev.type === 'pointerup') {
         // Un clic ou un tap
         const n = pick(ev);
-        if (n) select(n === selected && n.type !== 'hub' ? null : n);
-        else select(null);
+        if (n && n === ego) egoTap(ev.pointerType === 'mouse');
+        else {
+          armed = null;
+          if (n) select(n === selected && n.type !== 'hub' ? null : n);
+          else select(null);
+        }
       }
       dragNode = null;
       gesture = null;
@@ -759,7 +1302,7 @@
     }
     canvas.addEventListener('pointerup', endPointer);
     canvas.addEventListener('pointercancel', endPointer);
-    canvas.addEventListener('pointerleave', (ev) => { if (ev.pointerType === 'mouse' && !gesture) setHover(null); });
+    canvas.addEventListener('pointerleave', (ev) => { if (ev.pointerType === 'mouse' && !gesture && !fx.on) setHover(null); });
 
     canvas.addEventListener('wheel', (ev) => {
       ev.preventDefault();
@@ -768,7 +1311,7 @@
     }, { passive: false });
 
     /* ---------- Boucle d'animation ---------- */
-    const v = new THREE.Vector3(), v2 = new THREE.Vector3();
+    const v = new THREE.Vector3(), v2 = new THREE.Vector3(), tmpColor = new THREE.Color();
     let last = performance.now(), time = 0, baseTheta = 0;
 
     function frame(now) {
@@ -785,17 +1328,47 @@
       cam.theta = theta + sway;
       updateCamera(dt);
       cam.theta = theta;
+      // Prise de contrôle d'Ego : la caméra tremble un court instant (oscillation douce, pas d'à-coups)
+      if (now < fx.shakeUntil) {
+        const a = cam.radius * 0.006;
+        camera.position.x += Math.sin(now * 0.09) * a;
+        camera.position.y += Math.sin(now * 0.071 + 1) * a;
+      }
 
       const k = 1 - Math.exp(-dt * 6);
       const W = window.innerWidth, H = window.innerHeight;
 
+      // Arcs d'Ego : calculés seulement pendant le survol, la décharge tactile ou l'effet
+      let beat = 0;
+      if (ego) {
+        const arcsOn = !REDUCED && (hovered === ego || now < fx.arcUntil);
+        egoHeat += ((arcsOn ? 1 : 0) - egoHeat) * k;
+        arcGroup.visible = arcsOn;
+        if (arcsOn) updateArcs(dt * 1000, now < fx.strongUntil);
+        if (!REDUCED) {
+          // Au survol, le cœur s'emballe (1,5 fois plus vite au plus) : les impulsions accélèrent avec lui
+          beat = heartbeat(dt * (1 + 0.5 * egoHeat));
+          updateFlesh(dt, beat, egoHeat);
+        }
+      }
+
       for (const n of nodes) {
         n.level += (n.target - n.level) * k;
+        n.power += ((n.off ? 0 : 1) - n.power) * k;
         n.group.position.copy(n.pos);
-        n.core.material.color.copy(n.col).multiplyScalar(0.2 + 0.5 * n.level);
-        n.core.material.emissive.copy(n.col).multiplyScalar(0.1 + 0.45 * n.level);
-        n.glow.material.opacity = 0.15 + 0.85 * n.level;
-        const pulse = n.type === 'hub' && !REDUCED ? 1 + Math.sin(time * 1.4 + n.phase) * 0.05 : 1;
+        n.core.material.color.copy(n.col).multiplyScalar((0.2 + 0.5 * n.level) * n.power);
+        n.core.material.emissive.copy(n.col).multiplyScalar((0.1 + 0.45 * n.level) * n.power);
+        n.glow.material.opacity = (0.15 + 0.85 * n.level) * n.power;
+        let pulse = n.type === 'hub' && !REDUCED ? 1 + Math.sin(time * 1.4 + n.phase) * 0.05 : 1;
+        if (n === ego) {
+          // Ego : la chair prend la lumière (couleur × relief) ; son émission reste basse
+          // et le halo plus discret, pour que les circuits portent le battement
+          n.core.material.color.copy(n.col).multiplyScalar((0.3 + 0.25 * n.level) * n.power);
+          n.core.material.emissive.copy(n.col).multiplyScalar(0.06 * n.power)
+            .add(tmpColor.copy(n.halo).multiplyScalar(beat * 0.06 + egoHeat * 0.1));
+          pulse = 1 + beat * 0.09 + egoHeat * 0.12;
+          n.glow.material.opacity *= 0.55 + 0.25 * Math.max(egoHeat, beat * 0.6);
+        }
         n.glow.scale.setScalar(n.r * (n.type === 'hub' ? 7 : 6) * (0.7 + 0.3 * n.level) * pulse);
         for (const d of n.deco) {
           if (!REDUCED) {
@@ -803,7 +1376,7 @@
             d.obj.rotation.y += d.spin[1] * dt;
             d.obj.rotation.z += d.spin[2] * dt;
           }
-          d.obj.material.opacity = (n.colorKey === 'dev' ? 0.35 : 0.45) * (0.3 + 0.7 * n.level);
+          d.obj.material.opacity = (n.colorKey === 'dev' ? 0.35 : 0.45) * (0.3 + 0.7 * n.level) * n.power;
         }
 
         // Étiquette : on projette la position 3D sur l'écran

@@ -1,5 +1,6 @@
 /* Concept : une nuit profonde où deux astres reliés, Développement et Écriture,
-   tiennent leurs projets en orbite. La scène occupe tout l'écran ; le texte
+   tiennent leurs projets en orbite ; en dessous, Ego, rouge sang, les relie
+   et attend qu'on le touche. La scène occupe tout l'écran ; le texte
    flotte par-dessus, en panneaux discrets.
    Thème sombre assumé (choix de direction artistique, pas d'oubli). */
 :root {
@@ -12,6 +13,8 @@
   --ink-dim:  #93a4b4;
   --dev:      #5ccbe2;   /* cyan : réseau, systèmes */
   --ecriture: #f1a94e;   /* ambre : encre, lampe de bureau */
+  --ego:      #9b0f12;   /* rouge sang : la sphère */
+  --ego-vif:  #d01a1f;   /* rouge plus vif : halo, texte (contraste 3,5:1, assez pour les grands titres) */
 
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
   --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -85,6 +88,7 @@ a { color: inherit; }
 }
 .lbl-hub.c-dev { color: var(--dev); }
 .lbl-hub.c-ecriture { color: var(--ecriture); }
+.lbl-hub.c-ego { color: var(--ego-vif); }
 .lbl-project {
   font: 500 var(--step-0)/1.2 var(--font-body);
   color: var(--ink);
@@ -354,6 +358,7 @@ button.proj-open:focus-visible { outline: 2px solid var(--accent); outline-offse
 }
 .group.c-dev { --accent: var(--dev); }
 .group.c-ecriture { --accent: var(--ecriture); }
+.group.c-ego { --accent: var(--ego-vif); }
 .list-foot { color: var(--ink-dim); }
 
 .notice {
@@ -368,6 +373,120 @@ button.proj-open:focus-visible { outline: 2px solid var(--accent); outline-offse
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+}
+
+/* ---------- Ego : prise de contrôle de l'interface ----------
+   Deux états posés sur <body> par main.js : .ego-glitch (corruption) puis .ego-black,
+   avec .ego-has-line et .ego-typing pendant que la réplique s'écrit.
+   Aucun flash : des décalages, une teinte et un voile qui arrivent en fondu.
+   Les transitions ne sont déclarées que dans les états actifs : au retour arrière,
+   tout redevient normal d'un coup, sans fondu inverse. */
+.ego-tint,
+.ego-scan,
+.ego-veil {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+/* La palette dérive vers le rouge : un calque en mode « couleur » garde la luminosité */
+.ego-tint {
+  z-index: 7;
+  background: var(--ego-vif);
+  mix-blend-mode: color;
+}
+/* Lignes de balayage, fixes */
+.ego-scan {
+  z-index: 8;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, .38) 0 1px, transparent 1px 3px);
+}
+.ego-veil {
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--gutter);
+  text-align: center;
+  background: #000;
+  visibility: hidden;
+}
+.ego-name {
+  margin: 0;
+  padding-left: .25em; /* compense l'espacement après la dernière lettre */
+  font: 600 clamp(4rem, 20vw, 9rem)/1 var(--font-display);
+  letter-spacing: .25em;
+  color: var(--ego-vif);
+  text-shadow: 0 0 40px rgba(208, 26, 31, .45);
+}
+.ego-line {
+  margin: 1.2rem 0 0;
+  max-width: 32rem;
+  font: 400 var(--step--1)/1.5 var(--font-mono);
+  color: #c4b1ac;
+}
+.ego-rest { visibility: hidden; } /* la suite de la phrase, pas encore tapée */
+/* Curseur fin, sans largeur dans la ligne : il ne pousse pas le texte */
+.ego-caret {
+  display: none;
+  width: 0;
+  height: 1.1em;
+  margin-right: -2px;
+  vertical-align: -.2em;
+  border-left: 2px solid currentColor;
+}
+.ego-typing .ego-caret { display: inline-block; animation: ego-caret 1s ease-in-out infinite; }
+/* Clignotement lent (une fois par seconde) et en fondu : pas un flash */
+@keyframes ego-caret { 50% { opacity: .15; } }
+.ego-skip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  margin: 0;
+  font: 400 .75rem/1 var(--font-mono);
+  letter-spacing: .08em;
+  color: #8a7c78;
+  opacity: 0;
+}
+.ego-has-line .ego-skip { opacity: 1; transition: opacity .6s linear .4s; }
+
+.ego-glitch .ego-tint { opacity: .85; transition: opacity .8s ease-in; }
+.ego-glitch .ego-scan { opacity: 1; transition: opacity .3s linear; }
+.ego-black .ego-veil { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .2s linear; }
+
+/* Dédoublement de couleur rouge/cyan */
+.ego-glitch #who { text-shadow: -3px 0 rgba(208, 26, 31, .85), 3px 0 rgba(92, 203, 226, .6); }
+.ego-glitch #role,
+.ego-glitch .hint,
+.ego-glitch .lbl { text-shadow: -2px 0 rgba(208, 26, 31, .8), 2px 0 rgba(92, 203, 226, .55); }
+
+/* Tranches décalées : deux copies du texte (attribut data-glitch, jamais du HTML),
+   chacune découpée en bande par clip-path et poussée de côté */
+.ego-glitch #role { position: relative; }
+.ego-glitch [data-glitch]::before,
+.ego-glitch [data-glitch]::after {
+  content: attr(data-glitch);
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  pointer-events: none;
+  animation: ego-slice-a .72s steps(1, end) infinite;
+}
+.ego-glitch [data-glitch]::after { animation: ego-slice-b .9s steps(1, end) infinite; }
+
+@keyframes ego-slice-a {
+  0%   { clip-path: inset(10% 0 70% 0); transform: translateX(-6px); }
+  20%  { clip-path: inset(55% 0 25% 0); transform: translateX(5px); }
+  40%  { clip-path: inset(30% 0 52% 0); transform: translateX(-9px); }
+  60%  { clip-path: inset(78% 0 4% 0);  transform: translateX(7px); }
+  80%  { clip-path: inset(0 0 85% 0);   transform: translateX(-4px); }
+}
+@keyframes ego-slice-b {
+  0%   { clip-path: inset(62% 0 18% 0); transform: translateX(8px); }
+  25%  { clip-path: inset(5% 0 80% 0);  transform: translateX(-5px); }
+  50%  { clip-path: inset(40% 0 44% 0); transform: translateX(10px); }
+  75%  { clip-path: inset(85% 0 0 0);   transform: translateX(-7px); }
 }
 
 /* ---------- Téléphone ---------- */
@@ -392,4 +511,7 @@ button.proj-open:focus-visible { outline: 2px solid var(--accent); outline-offse
 
 @media (prefers-reduced-motion: reduce) {
   .lbl { transition: none; }
+  /* Pas de glitch : seulement le fondu au noir, en 400 ms */
+  .ego-black .ego-veil { transition-duration: .4s; }
+  .ego-typing .ego-caret { animation: none; }
 }
