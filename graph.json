@@ -151,6 +151,16 @@
       "id": "worldbuilding",
       "type": "skill",
       "title": "Worldbuilding"
+    },
+    {
+      "id": "ia-gen",
+      "type": "skill",
+      "title": "IA générative"
+    },
+    {
+      "id": "cf-workers",
+      "type": "skill",
+      "title": "Cloudflare Workers"
     }
   ],
   "links": [
@@ -284,6 +294,30 @@
     {
       "source": "codex",
       "target": "js"
+    },
+    {
+      "source": "ego",
+      "target": "narration"
+    },
+    {
+      "source": "ego",
+      "target": "worldbuilding"
+    },
+    {
+      "source": "ego",
+      "target": "js"
+    },
+    {
+      "source": "ego",
+      "target": "htmlcss"
+    },
+    {
+      "source": "ego",
+      "target": "ia-gen"
+    },
+    {
+      "source": "ego",
+      "target": "cf-workers"
     }
   ]
 }

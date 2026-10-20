@@ -10,6 +10,8 @@
    - La sphère Ego (effect "glitch") est une membrane vivante parcourue de
      circuits ; elle lance des arcs électriques au survol et « prend le
      contrôle » de l'interface au clic, avant d'ouvrir son site.
+   - L'emprise d'Ego (purement visuelle) : un fil rouge presque invisible le
+     relie à chaque nœud, et chaque nœud porte un implant qui bat avec son cœur.
    - Aucun contenu n'est injecté avec innerHTML : tout passe par
      textContent, pour qu'un texte du JSON ne puisse jamais devenir du code.
    ===================================================================== */
@@ -23,18 +25,41 @@
   const COLORS = { dev: 0x5ccbe2, ecriture: 0xf1a94e, ego: 0x9b0f12, neutral: 0x93a4b4 };
   const HALO = { ego: 0xd01a1f };  // halo plus vif que la sphère (sinon, la couleur de la sphère)
   // Position des sphères principales, dans l'ordre de graph.json (Développement, Écriture, Ego).
-  // Paysage : un triangle pointe en haut, Ego au sommet, les deux mondes côte à côte en dessous.
+  // Paysage : un triangle large et plat, Ego au sommet, les deux mondes aux coins du bas,
+  // et leurs nuages sur les côtés extérieurs : le graphe prend la largeur de l'écran.
   // Portrait : Ego en haut, puis les deux mondes légèrement décalés en hauteur,
   // pour que leurs étiquettes ne se chevauchent pas sur un écran étroit.
   const ANCHORS = {
-    landscape: [[-30, -6], [30, -6], [0, 22]],
+    landscape: [[-58, 0], [58, 0], [0, 22]],
     portrait: [[-11, -4], [11, -12], [0, 24]],
   };
-  const RADIUS = { hub: 4.2, project: 1.7, skill: 0.85 };
+  // Point d'attache doux des nuages, par rapport à leur sphère : « out » vers l'extérieur
+  // du triangle, « down » vers le bas ; « shared » : profondeur des compétences communes
+  // aux deux mondes, rangées au milieu, sous le niveau des sphères.
+  // « floor » : plancher sous les sphères ; « wall » : mur extérieur, au-delà de la sphère ; « lane » : couloir central réservé aux compétences
+  // communes, en fraction de l'écart entre Ego et une sphère ; « k » : force du rappel [x, y, z] ;
+  // « own » (paysage) : angle sous l'horizontale où se rangent les compétences d'Ego seul.
+  // Paysage : rappel fort en hauteur (le graphe reste plat et large). Portrait : l'inverse.
+  const NEST = {
+    landscape: { out: 6, down: 13, shared: 16, floor: 27, wall: Infinity, lane: 0.35, k: [0.008, 0.012, 0.05], own: 0.08 },
+    portrait: { out: 4, down: 30, shared: 30, floor: 80, wall: 20, lane: 0.3, k: [0.012, 0.006, 0.04] },
+  };
+  const NEST_OWN = [0.04, 0.04, 0.04]; // compétences d'Ego seul : tenues fermement près de lui
+  // Sphères principales 25 % plus grosses qu'avant (4,2), petits nœuds inchangés
+  const RADIUS = { hub: 5.25, project: 1.7, skill: 0.85 };
   // Ego n'a ni maillage ni anneaux : sans ce coup de pouce, il paraît deux fois plus petit
   const EGO_SCALE = 1.4;
   const EGO_CLEAR = 3;     // zone dégagée autour d'Ego, en rayons d'Ego
   const ARC_LENGTH = 1.5;  // longueur des arcs (1 = réglage d'origine)
+  // Emprise d'Ego : fils latents vers chaque nœud et implants (purement visuels)
+  const GRIP = {
+    rest: 0.04,      // luminosité d'un fil au repos (presque invisible)
+    hot: 0.26,       // luminosité d'un fil quand Ego est survolé
+    subdiv: 16,      // segments par fil : la vague et l'impulsion avancent le long du fil
+    waveTime: 0.4,   // secondes pour que la vague atteigne le nœud le plus lointain
+    implant: 0.18,   // rayon d'un implant, en fraction du rayon de son nœud
+    pulseMin: 4, pulseMax: 7, pulseTravel: 0.8, // impulsion au hasard hors survol (secondes)
+  };
   const CHARGE = { hub: 3.2, project: 1.5, skill: 0.8 };
   const MASS   = { hub: 3, project: 1.2, skill: 0.8 };
   const REST   = { hub: 1, project: 0.45, skill: 0.22 };   // luminosité au repos
@@ -197,10 +222,18 @@
       if (n.type === 'hub') n.col = new THREE.Color(COLORS[n.colorKey] || COLORS.neutral);
       else if (n.type === 'project') n.col = new THREE.Color(COLORS[n.colorKey] || COLORS.neutral);
     }
+    // La sphère à effets (Ego) : arcs au survol, prise de contrôle au clic
+    const ego = nodes.find((n) => n.type === 'hub' && n.effect === 'glitch') || null;
+    // Tout ce qui dépend du rayon suit : membrane, veines, arcs, halo, zone de clic, étiquette
+    if (ego) ego.r = RADIUS.hub * EGO_SCALE;
+
     for (const n of nodes) {
       if (n.type !== 'skill') continue;
+      // Le lien d'Ego ne teinte pas une compétence qui appartient déjà à un monde :
+      // sa marque à lui, ce sont les fils rouges. Seules ses compétences propres sont rouges.
       const keys = new Set();
-      for (const m of neighbors(n)) if (m.colorKey) keys.add(m.colorKey);
+      for (const m of neighbors(n)) if (m.colorKey && m !== ego) keys.add(m.colorKey);
+      if (!keys.size && ego && neighbors(n).includes(ego)) keys.add(ego.colorKey);
       const c = new THREE.Color(0, 0, 0);
       if (keys.size === 0) c.set(COLORS.neutral);
       else { for (const k of keys) c.add(new THREE.Color(COLORS[k])); c.multiplyScalar(1 / keys.size); }
@@ -209,10 +242,20 @@
     // Couleur du halo, des liens et des paquets : la même, sauf pour Ego (plus vive)
     for (const n of nodes) n.halo = HALO[n.colorKey] ? new THREE.Color(HALO[n.colorKey]) : n.col;
 
-    // La sphère à effets (Ego) : arcs au survol, prise de contrôle au clic
-    const ego = nodes.find((n) => n.type === 'hub' && n.effect === 'glitch') || null;
-    // Tout ce qui dépend du rayon suit : membrane, veines, arcs, halo, zone de clic, étiquette
-    if (ego) ego.r = RADIUS.hub * EGO_SCALE;
+    // Monde de chaque nœud, pour savoir où le ranger : sa sphère (un seul monde),
+    // « shared » (compétence prouvée dans les deux mondes), ou Ego (compétence d'Ego seul)
+    for (const n of nodes) {
+      if (n.type === 'hub') continue;
+      if (n.type === 'project') { n.world = byId.get(n.hub) || null; continue; }
+      const set = new Set();
+      for (const m of neighbors(n)) {
+        const w = m.type === 'project' ? byId.get(m.hub) : m.type === 'hub' ? m : null;
+        if (w && w !== ego) set.add(w);
+      }
+      if (set.size === 1) n.world = [...set][0];
+      else if (set.size > 1) n.world = 'shared';
+      else n.world = ego && neighbors(n).includes(ego) ? ego : null;
+    }
 
     /* ---------- Textes fixes ---------- */
     if (data.profile) {
@@ -661,8 +704,10 @@
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
       const colors = new Float32Array(6);
-      l.a.halo.toArray(colors, 0);
-      l.b.halo.toArray(colors, 3);
+      // Les liens d'Ego vers ses compétences sont rouges d'un bout à l'autre
+      const egoLink = ego && l.kind !== 'bridge' && (l.a === ego || l.b === ego);
+      (egoLink ? ego : l.a).halo.toArray(colors, 0);
+      (egoLink ? ego : l.b).halo.toArray(colors, 3);
       geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
       l.line = new THREE.Line(geo, new THREE.LineBasicMaterial({
         vertexColors: true, transparent: true, opacity: 0.1, depthWrite: false,
@@ -685,12 +730,187 @@
       for (const l of links) {
         if (l.kind === 'bridge') {
           for (let i = 0; i < 6; i++) addPacket(l, i % 2 === 0, i / 6, 0.11, 2.6);
+        } else if (ego && (l.a === ego || l.b === ego)) {
+          // Les paquets partent d'Ego (et prennent sa couleur)
+          addPacket(l, l.a === ego, Math.random(), 0.16, 1.4);
         } else if (l.kind === 'hub-project') {
           addPacket(l, l.a.type === 'hub', Math.random(), 0.22, 1.6);
         } else {
           addPacket(l, l.a.type === 'project', Math.random(), 0.3, 1.1);
         }
       }
+    }
+
+    /* ---------- L'emprise d'Ego : fils latents et implants ---------- */
+    // Purement visuel : rien de tout ça n'entre dans la simulation physique.
+    // Deux objets seulement, créés une fois : un LineSegments pour tous les fils et un Points
+    // pour tous les implants. À chaque image, on réécrit leurs tableaux sur place.
+    // Chaque fil est découpé en GRIP.subdiv segments : sa couleur peut changer le long du fil,
+    // ce qui permet à la vague et à l'impulsion d'avancer d'Ego vers le nœud.
+    const thralls = ego ? nodes.filter((n) => n !== ego) : [];
+    const SUB = GRIP.subdiv, TH = thralls.length;
+    const grip = {
+      level: 0,           // 0 = repos, 1 = Ego survolé
+      wave: 0,            // distance déjà parcourue par la vague depuis Ego (unités de la scène)
+      reach: 60,          // longueur du fil le plus long (mesurée à chaque image)
+      wasOn: false,
+      next: GRIP.pulseMin + Math.random() * (GRIP.pulseMax - GRIP.pulseMin), // prochaine impulsion
+      pulse: -1, pulseT: 0, // fil de l'impulsion en cours (-1 : aucune) et temps écoulé
+      blink: new Float32Array(TH), // clignotement de chaque implant (temps restant, en secondes)
+      len: new Float32Array(TH),   // longueur de chaque fil
+    };
+    const GRIP_RED = new THREE.Color(0xff2a2e);
+    const gripGeo = new THREE.BufferGeometry();
+    gripGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TH * SUB * 6), 3).setUsage(THREE.DynamicDrawUsage));
+    gripGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(TH * SUB * 6), 3).setUsage(THREE.DynamicDrawUsage));
+    // Mélange additif : sur le fond sombre, la luminosité de la couleur joue le rôle de l'opacité
+    const gripLines = new THREE.LineSegments(gripGeo, new THREE.LineBasicMaterial({
+      vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    }));
+
+    // Implants : taille propre à chaque point (attribut « size »), donc un petit shader maison ;
+    // PointsMaterial n'a qu'une taille pour tous les points.
+    const implantGeo = new THREE.BufferGeometry();
+    implantGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TH * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    implantGeo.setAttribute('size', new THREE.BufferAttribute(new Float32Array(TH), 1).setUsage(THREE.DynamicDrawUsage));
+    implantGeo.setAttribute('alpha', new THREE.BufferAttribute(new Float32Array(TH), 1).setUsage(THREE.DynamicDrawUsage));
+    // « lift » : rayon du nœud porteur (fixe), voir le shader
+    implantGeo.setAttribute('lift', new THREE.BufferAttribute(new Float32Array(thralls.map((n) => n.r)), 1));
+    const implantMat = new THREE.ShaderMaterial({
+      uniforms: { color: { value: GRIP_RED.clone() }, scale: { value: 1 }, minPx: { value: 2.5 } },
+      vertexShader: `
+        attribute float size; attribute float alpha; attribute float lift;
+        uniform float scale; uniform float minPx;
+        varying float vAlpha;
+        void main() {
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          // Diamètre en unités de la scène, converti en pixels selon la distance
+          gl_PointSize = max(size * scale / -mv.z, minPx);
+          vAlpha = alpha;
+          // Le point est un carré face à l'écran : posé sur une sphère, sa moitié s'enfoncerait
+          // dans la surface. On l'avance donc vers la caméra, le long du rayon de vue (il ne bouge
+          // pas à l'écran), d'un rayon de son nœud : il passe devant sa sphère, pas devant les autres.
+          mv.xyz *= max(0.0, 1.0 - lift / length(mv.xyz));
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: `
+        uniform vec3 color; varying float vAlpha;
+        void main() {
+          float d = length(gl_PointCoord - 0.5) * 2.0;   // 0 au centre, 1 au bord
+          float a = 1.0 - smoothstep(0.5, 1.0, d);        // disque aux bords adoucis
+          gl_FragColor = vec4(color * (1.0 + 0.5 * vAlpha * (1.0 - d)), a * vAlpha);
+        }`,
+      transparent: true, depthWrite: false,
+    });
+    const implants = new THREE.Points(implantGeo, implantMat);
+    // Tête de l'impulsion : un seul halo, réutilisé à chaque impulsion
+    const pulseHead = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTex, color: GRIP_RED, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    pulseHead.scale.setScalar(2.2);
+    gripLines.frustumCulled = implants.frustumCulled = false; // les points bougent : pas de boîte englobante fiable
+    implants.renderOrder = 2; // après les halos, sinon ils l'effacent
+    if (TH) scene.add(gripLines, implants, pulseHead);
+
+    const gE = new THREE.Vector3(), gC = new THREE.Vector3(), gA = new THREE.Vector3(), gB = new THREE.Vector3();
+    // Luminosité d'un point du fil i situé à la distance s d'Ego
+    function gripAt(i, s) {
+      if (REDUCED) return GRIP.rest;
+      let b = GRIP.rest;
+      if (grip.level > 0.001) {
+        const ahead = grip.wave - s; // > 0 : la vague est déjà passée ici
+        const lit = Math.min(1, Math.max(0, ahead / 6));
+        b += grip.level * (lit * (GRIP.hot - GRIP.rest) + 0.45 * Math.exp(-((ahead / 4) ** 2)));
+      }
+      if (i === grip.pulse) {
+        const t = grip.pulseT, T = GRIP.pulseTravel;
+        // Le fil s'allume un peu le temps de l'impulsion, avec un fondu à l'entrée et à la sortie
+        const env = Math.min(1, t / 0.15) * (1 - Math.min(1, Math.max(0, (t - T) / 0.6)));
+        b += env * 0.12 + (t < T ? 0.7 * Math.exp(-(((s - (t / T) * grip.len[i]) / 3) ** 2)) : 0);
+      }
+      return b * thralls[i].power;
+    }
+
+    function updateGrip(dt, beat) {
+      if (!TH) return;
+      const on = !REDUCED && (hovered === ego || armed === ego);
+      if (!REDUCED) {
+        // Début du survol : la vague repart d'Ego (sauf si les fils sont encore allumés)
+        if (on && !grip.wasOn && grip.level < 0.1) grip.wave = 0;
+        grip.wasOn = on;
+        // (bornée : une fois tout atteint, la crête lumineuse a quitté les fils)
+        if (on) grip.wave = Math.min(grip.wave + dt * (grip.reach / GRIP.waveTime), grip.reach + 30);
+        // Montée rapide (la vague fait le spectacle), retour au repos plus lent
+        grip.level += ((on ? 1 : 0) - grip.level) * (1 - Math.exp(-dt * (on ? 10 : 2.2)));
+
+        // Hors survol : de temps en temps, une impulsion court vers un nœud au hasard
+        if (grip.pulse >= 0) {
+          grip.pulseT += dt;
+          if (grip.pulseT >= GRIP.pulseTravel && grip.pulseT - dt < GRIP.pulseTravel) grip.blink[grip.pulse] = 0.7;
+          if (grip.pulseT > GRIP.pulseTravel + 0.6) grip.pulse = -1;
+        } else if (grip.level < 0.02 && !fx.on && (grip.next -= dt) <= 0) {
+          grip.pulse = Math.floor(Math.random() * TH);
+          grip.pulseT = 0;
+          grip.next = GRIP.pulseMin + Math.random() * (GRIP.pulseMax - GRIP.pulseMin);
+        }
+      }
+
+      const P = gripGeo.attributes.position, C = gripGeo.attributes.color;
+      const IP = implantGeo.attributes.position, IS = implantGeo.attributes.size, IA = implantGeo.attributes.alpha;
+      let reach = 1;
+      for (let i = 0; i < TH; i++) {
+        const n = thralls[i];
+        // Implant : collé à la surface du nœud, côté Ego, légèrement tourné vers la caméra
+        // pour ne pas disparaître derrière le bord de la sphère
+        gE.subVectors(ego.pos, n.pos).normalize();
+        gC.subVectors(camera.position, n.pos).normalize();
+        gB.copy(gE).addScaledVector(gC, 0.6).normalize().multiplyScalar(n.r).add(n.pos);
+        gA.copy(gE).multiplyScalar(-ego.r).add(ego.pos); // départ du fil : la surface d'Ego
+        const len = gA.distanceTo(gB);
+        grip.len[i] = len;
+        if (len > reach) reach = len;
+
+        // Fil : SUB segments de gA à gB, la couleur calculée à chaque point de découpe
+        let px = gA.x, py = gA.y, pz = gA.z, pb = gripAt(i, 0);
+        for (let k = 1; k <= SUB; k++) {
+          const t = k / SUB;
+          const x = gA.x + (gB.x - gA.x) * t, y = gA.y + (gB.y - gA.y) * t, z = gA.z + (gB.z - gA.z) * t;
+          const b = gripAt(i, len * t);
+          const v0 = (i * SUB + k - 1) * 2;
+          P.setXYZ(v0, px, py, pz); P.setXYZ(v0 + 1, x, y, z);
+          C.setXYZ(v0, GRIP_RED.r * pb, GRIP_RED.g * pb, GRIP_RED.b * pb);
+          C.setXYZ(v0 + 1, GRIP_RED.r * b, GRIP_RED.g * b, GRIP_RED.b * b);
+          px = x; py = y; pz = z; pb = b;
+        }
+
+        // Implant : bat avec le cœur d'Ego, s'avive quand la vague l'atteint, clignote après une impulsion
+        let a = 0.45, size = 1;
+        if (!REDUCED) {
+          const reached = Math.min(1, Math.max(0, (grip.wave - len) / 6)) * grip.level;
+          let blink = 0;
+          if (grip.blink[i] > 0) {
+            grip.blink[i] = Math.max(0, grip.blink[i] - dt);
+            blink = Math.sin(Math.PI * (1 - grip.blink[i] / 0.7)); // monte puis redescend, sans flash
+          }
+          a = 0.3 + 0.35 * beat + 0.5 * reached + 0.55 * blink;
+          size = 1 + 0.25 * beat + 0.35 * reached + 0.3 * blink;
+        }
+        IP.setXYZ(i, gB.x, gB.y, gB.z);
+        IS.setX(i, n.r * GRIP.implant * 2 * size);
+        IA.setX(i, Math.min(1, a) * n.power);
+      }
+      grip.reach = reach;
+      P.needsUpdate = C.needsUpdate = IP.needsUpdate = IS.needsUpdate = IA.needsUpdate = true;
+
+      // Tête de l'impulsion
+      if (grip.pulse >= 0 && grip.pulseT < GRIP.pulseTravel) {
+        // Elle glisse du premier au dernier point du fil (déjà calculés ci-dessus)
+        const i = grip.pulse, t = grip.pulseT / GRIP.pulseTravel, n = thralls[i];
+        gA.fromBufferAttribute(P, i * SUB * 2);
+        gB.fromBufferAttribute(P, (i * SUB + SUB - 1) * 2 + 1);
+        pulseHead.position.lerpVectors(gA, gB, t);
+        pulseHead.material.opacity = 0.9 * Math.min(1, grip.pulseT / 0.15) * Math.min(1, (1 - t) * 6) * n.power;
+      } else pulseHead.material.opacity = 0;
     }
 
     /* ---------- Étiquettes HTML (nettes et lisibles) ---------- */
@@ -709,7 +929,8 @@
 
     /* ---------- Placement initial et ancrages ---------- */
     let portrait = false;
-    const gravity = new THREE.Vector3(); // point vers lequel les projets et compétences sont attirés
+    // Triangle des trois sphères, à garder dégagé : un bord = un point et sa normale vers l'extérieur
+    const triangle = [];
     function placeAnchors() {
       // Paysage : un triangle, Ego au sommet. Portrait (téléphone) : Ego en haut, les deux mondes dessous (voir ANCHORS).
       const table = portrait ? ANCHORS.portrait : ANCHORS.landscape;
@@ -717,41 +938,76 @@
         const [x, y] = table[i] || [0, 0];
         h.anchor = new THREE.Vector3(x, y, 0);
       });
-      // Les nuages de projets pendent sous Développement et Écriture, loin d'Ego qui est au-dessus
+
+      // Chaque petit nœud reçoit un nid : le point où il revient doucement.
+      // Un monde range ses nœuds à l'extérieur et sous sa sphère ; les compétences communes
+      // aux deux mondes vont au milieu, plus bas ; celles d'Ego seul, de part et d'autre d'Ego
+      // (en paysage) ou au bout de la colonne du milieu (en portrait, faute de place à côté de lui).
+      const nest = portrait ? NEST.portrait : NEST.landscape;
       const worlds = hubs.filter((h) => h !== ego);
-      gravity.set(0, 0, 0);
-      for (const h of worlds) gravity.add(h.anchor);
-      gravity.multiplyScalar(1 / Math.max(worlds.length, 1));
-      if (ego) gravity.y -= portrait ? 10 : 14;
+      const midX = ego ? ego.anchor.x : 0;
+      const lowY = worlds.length ? Math.min(...worlds.map((h) => h.anchor.y)) : 0;
+      let side = -1, shared = 0;
+      for (const n of nodes) {
+        if (n.type === 'hub') continue;
+        const w = n.world;
+        n.floor = lowY - nest.floor;
+        n.ceil = Infinity;
+        n.side = 0;
+        if (w && w !== 'shared' && w !== ego) {
+          const s = Math.sign(w.anchor.x - midX) || 1;
+          n.home = new THREE.Vector3(w.anchor.x + s * nest.out, w.anchor.y - nest.down, 0);
+          n.side = s;
+          n.lane = midX + s * Math.abs(w.anchor.x - midX) * nest.lane;
+          n.wall = w.anchor.x + s * nest.wall;
+          n.ceil = w.anchor.y + 2; // pas plus haut que sa sphère
+        } else if (w === ego && !portrait) {
+          // À côté d'Ego, juste hors de sa zone dégagée, en alternant gauche et droite
+          const d = ego.r * EGO_CLEAR + 3;
+          n.home = new THREE.Vector3(ego.anchor.x + side * d * Math.cos(nest.own), ego.anchor.y - d * Math.sin(nest.own), 0);
+          side = -side;
+        } else {
+          // En portrait, la colonne du milieu est étroite : les compétences communes s'y rangent
+          // en escalier, pour que leurs étiquettes ne se recouvrent pas
+          const step = portrait ? shared++ : 0, dx = portrait ? (step % 2 ? 5 : -5) : 0;
+          n.home = new THREE.Vector3(midX + dx, lowY - nest.shared - step * 10, 0);
+        }
+      }
+
+      // Les liens d'Ego vers ses compétences sont des ressorts comme les autres, mais leur
+      // longueur au repos est la distance entre Ego et le nid du nœud : à l'équilibre ils ne
+      // tirent pas, et les nuages restent à leur place au lieu de remonter vers Ego.
+      for (const l of links) {
+        if (!ego || l.kind === 'bridge' || (l.a !== ego && l.b !== ego)) continue;
+        const o = l.a === ego ? l.b : l.a;
+        l.rest = o.home ? Math.hypot(o.home.x - ego.anchor.x, o.home.y - ego.anchor.y) : null;
+      }
+
+      // Bords du triangle, normales tournées vers l'extérieur
+      triangle.length = 0;
+      if (hubs.length === 3) {
+        const c = new THREE.Vector3();
+        for (const h of hubs) c.add(h.anchor);
+        c.multiplyScalar(1 / 3);
+        for (let i = 0; i < 3; i++) {
+          const a = hubs[i].anchor, b = hubs[(i + 1) % 3].anchor;
+          let nx = b.y - a.y, ny = a.x - b.x;
+          const l = Math.hypot(nx, ny) || 1;
+          nx /= l; ny /= l;
+          if ((c.x - a.x) * nx + (c.y - a.y) * ny > 0) { nx = -nx; ny = -ny; }
+          triangle.push({ x: a.x, y: a.y, nx, ny });
+        }
+      }
     }
 
     function initialLayout() {
       placeAnchors();
       for (const h of hubs) h.pos.copy(h.anchor);
       const rnd = (k) => (Math.random() - 0.5) * k;
-      const mid = new THREE.Vector3();
-      for (const h of hubs) mid.add(h.anchor);
-      mid.multiplyScalar(1 / Math.max(hubs.length, 1));
-      // Les projets partent en éventail autour de leur sphère, côté extérieur
-      for (const h of hubs) {
-        const ps = projectsOf(h);
-        const out = h.anchor.clone().sub(mid).normalize();
-        const side = new THREE.Vector3(-out.y, out.x, 0); // perpendiculaire, dans le plan de l'écran
-        ps.forEach((p, i) => {
-          const a = ((i + 0.5) / ps.length - 0.5) * Math.PI * 1.4;
-          p.pos.copy(h.anchor)
-            .addScaledVector(out, Math.cos(a) * 18)
-            .addScaledVector(side, Math.sin(a) * 18)
-            .add(new THREE.Vector3(rnd(4), rnd(4), rnd(4)));
-        });
-      }
+      // Chaque nœud part de son nid, avec un peu de hasard ; la physique fait le reste
       for (const n of nodes) {
-        if (n.type !== 'skill') continue;
-        const nb = neighbors(n);
-        const c = new THREE.Vector3();
-        for (const m of nb) c.add(m.pos);
-        if (nb.length) c.multiplyScalar(1 / nb.length);
-        n.pos.copy(c).add(new THREE.Vector3(rnd(16), rnd(16), rnd(16)));
+        if (n.type === 'hub') continue;
+        n.pos.copy(n.home).add(new THREE.Vector3(rnd(14), rnd(10), rnd(10)));
       }
       for (let i = 0; i < 400; i++) physicsStep(0, false);
     }
@@ -782,7 +1038,8 @@
         tmp.subVectors(l.b.pos, l.a.pos);
         const d = Math.max(tmp.length(), 0.01);
         // Entre deux sphères ancrées, le ressort garde la distance des ancrages (sinon ils se contredisent)
-        const rest = l.a.anchor && l.b.anchor ? l.a.anchor.distanceTo(l.b.anchor) : SPRING_LENGTH[l.kind] || 18;
+        // (les liens d'Ego ont leur propre longueur, calculée dans placeAnchors)
+        const rest = l.a.anchor && l.b.anchor ? l.a.anchor.distanceTo(l.b.anchor) : l.rest || SPRING_LENGTH[l.kind] || 18;
         const f = K_SPRING * (d - rest);
         tmp.multiplyScalar(f / d);
         l.a.force.add(tmp);
@@ -790,18 +1047,46 @@
       }
 
       for (const n of nodes) {
-        // 3. Ancrage des sphères, légère gravité vers le bas de la scène pour les autres.
-        // En paysage, elle tire à peine vers le centre en largeur : les nuages s'étalent
-        // vers les côtés extérieurs au lieu de s'empiler au milieu.
+        // 3. Ancrage des sphères ; les autres nœuds sont rappelés doucement vers leur nid.
+        // En paysage, le rappel est plus faible en largeur : les nuages s'étalent sur les côtés.
+        // Les compétences d'Ego seul sont tenues plus fermement, pour rester près de lui.
         if (n.anchor) n.force.add(tmp.subVectors(n.anchor, n.pos).multiplyScalar(K_ANCHOR * MASS.hub));
-        else {
-          tmp.subVectors(gravity, n.pos);
-          n.force.x += tmp.x * (portrait ? 0.005 : 0.0015);
-          n.force.y += tmp.y * 0.005;
-          n.force.z += tmp.z * 0.005;
+        else if (n.home) {
+          const own = ego && n.world === ego;
+          const [kx, ky, kz] = own ? NEST_OWN : portrait ? NEST.portrait.k : NEST.landscape.k;
+          tmp.subVectors(n.home, n.pos);
+          n.force.x += tmp.x * kx;
+          n.force.y += tmp.y * ky;
+          n.force.z += tmp.z * kz;
+          if (!own) {
+            // Plancher : les nuages ne descendent pas trop, le graphe reste plus large que haut
+            if (n.pos.y < n.floor) n.force.y += (n.floor - n.pos.y) * 0.08;
+            // Plafond (paysage) : les nuages s'étalent à côté et sous leur sphère, pas au-dessus
+            if (!portrait && n.pos.y > n.ceil) n.force.y -= (n.pos.y - n.ceil) * 0.08;
+            // Couloir : un nœud d'un seul monde reste de son côté, le milieu est aux compétences communes
+            const into = n.side * (n.lane - n.pos.x);
+            if (n.side && into > 0) n.force.x += n.side * into * 0.06;
+            // Mur extérieur (portrait) : sur un écran étroit, les nuages ne sortent pas par les côtés
+            const out = n.side * (n.pos.x - n.wall);
+            if (n.side && out > 0) n.force.x -= n.side * out * 0.06;
+          }
         }
 
-        // 3 bis. Zone dégagée autour d'Ego : un nœud qui y entre est repoussé. La distance est
+        // 3 bis. Centre du triangle dégagé : un nœud qui entre dans le triangle (agrandi d'une
+        // marge) est poussé vers le bord le plus proche. Seuls les fils le traversent.
+        if (!n.anchor && triangle.length === 3) {
+          let depth = Infinity, best = null;
+          for (const e of triangle) {
+            const d = 4 - ((n.pos.x - e.x) * e.nx + (n.pos.y - e.y) * e.ny); // > 0 : du côté intérieur
+            if (d < depth) { depth = d; best = e; }
+          }
+          if (depth > 0) {
+            n.force.x += best.nx * depth * 0.15;
+            n.force.y += best.ny * depth * 0.15;
+          }
+        }
+
+        // 3 ter. Zone dégagée autour d'Ego : un nœud qui y entre est repoussé. La distance est
         // mesurée dans le plan de l'écran (x, y), donc aucun nœud ne peut non plus passer devant lui.
         if (ego && !n.anchor) {
           const dx = n.pos.x - ego.pos.x, dy = n.pos.y - ego.pos.y;
@@ -848,6 +1133,11 @@
         const r = n === ego ? n.r * 1.8 : n.r;
         minX = Math.min(minX, n.pos.x - r); maxX = Math.max(maxX, n.pos.x + r);
         minY = Math.min(minY, n.pos.y - r); maxY = Math.max(maxY, n.pos.y + r);
+      }
+      // En paysage, Ego reste au centre de l'écran : la boîte est rendue symétrique autour de lui
+      if (ego && !portrait) {
+        const half = Math.max(ego.pos.x - minX, maxX - ego.pos.x);
+        minX = ego.pos.x - half; maxX = ego.pos.x + half;
       }
       minX -= 6; maxX += 6; minY -= 6; maxY += 6;
       const H = window.innerHeight;
@@ -896,6 +1186,10 @@
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      // Taille des implants : pixels de l'écran (réels) par unité de la scène, à distance 1
+      const dpr = renderer.getPixelRatio();
+      implantMat.uniforms.scale.value = (h * dpr) / (2 * Math.tan((camera.fov * Math.PI) / 360));
+      implantMat.uniforms.minPx.value = 2.5 * dpr;
       const wasPortrait = portrait;
       portrait = camera.aspect < 0.85;
       if (portrait !== wasPortrait) placeAnchors();
@@ -1013,7 +1307,7 @@
     }
 
     function projectItem(p, onOpen) {
-      const head = el('div', null, el('h3', { text: p.title }), el('p', { text: p.short || '' }));
+      const head = el('div', null, el('h3', { text: p.title }), p.short ? el('p', { text: p.short }) : null);
       let top = head;
       if (onOpen) {
         top = el('button', { class: 'proj-open', type: 'button', 'aria-label': 'Ouvrir ' + p.title });
@@ -1059,11 +1353,12 @@
         cardBody.append(
           el('p', { class: 'kicker', text: 'Compétence' }),
           el('h2', { id: 'card-title', text: n.title }));
-        const used = neighbors(n).filter((m) => m.type === 'project');
+        // Ego compte comme un projet ; sans bouton d'ouverture, car sa sphère n'a pas de fiche
+        const used = neighbors(n).filter((m) => m.type === 'project' || m === ego);
         if (used.length) {
           cardBody.append(el('p', { text: used.length > 1 ? 'Mise en pratique dans ces projets :' : 'Mise en pratique dans ce projet :' }));
           const ul = el('ul', { class: 'proj-list' });
-          for (const p of used) ul.append(projectItem(p, select));
+          for (const p of used) ul.append(projectItem(p, p === ego ? null : select));
           cardBody.append(ul);
         }
       }
@@ -1083,7 +1378,17 @@
         if (hub.short) g.append(el('p', { text: hub.short }));
         const projects = data.nodes.filter((n) => n.type === 'project' && n.hub === hub.id);
         if (!projects.length) {
-          // Sphère sans projets (Ego) : un simple lien vers son site, sans effet
+          // Sphère sans projets (Ego) : ses compétences (tirées des liens), puis un simple lien
+          // vers son site, sans effet
+          const skills = data.links
+            .map((l) => (l.source === hub.id ? l.target : l.target === hub.id ? l.source : null))
+            .map((id) => data.nodes.find((m) => m.id === id))
+            .filter((m) => m && m.type === 'skill');
+          if (skills.length) {
+            const chips = el('ul', { class: 'chips', 'aria-label': 'Compétences' });
+            for (const s of skills) chips.append(el('li', { text: s.title }));
+            g.append(chips);
+          }
           const act = el('div', { class: 'actions' }, linkButton('Parler à ' + hub.title, hub.site, false));
           if (act.childElementCount) g.append(act);
           body.append(g);
@@ -1460,6 +1765,9 @@
         l.line.geometry.computeBoundingSphere();
         l.line.material.opacity = l.level;
       }
+
+      // Emprise d'Ego : fils latents et implants, au rythme du même battement de cœur
+      if (ego) updateGrip(dt, beat);
 
       for (const p of packets) {
         p.u = (p.u + dt * p.speed) % 1;

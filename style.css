@@ -239,6 +239,7 @@ a { color: inherit; }
 }
 .card.c-dev, .proj.c-dev { --accent: var(--dev); }
 .card.c-ecriture, .proj.c-ecriture { --accent: var(--ecriture); }
+.card.c-ego, .proj.c-ego { --accent: var(--ego-vif); }
 
 .card .kicker {
   margin: 0 0 .35rem;
