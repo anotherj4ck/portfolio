@@ -85,7 +85,7 @@ Puis ouvrir http://localhost:8000. Dans VS Code, l'extension *Live Server* fait 
 - [Le Voyage du Paquet](https://github.com/anotherj4ck/le-voyage-du-paquet) : le trajet d'un paquet réseau, en 3D, avec un jeu de dépannage.
 - [OSI & TCP/IP](https://github.com/anotherj4ck/osi-tcpip) : les couches réseau, une par une.
 - [Simulation d'assistance](https://github.com/anotherj4ck/simulation-assistance-tickets) : traiter des demandes d'utilisateurs et créer les tickets, avec notation.
-- [Site d'auteur](https://github.com/anotherj4ck/auteur) : mes quatre univers de fiction, avec galeries de personnages.
+- [Site d'auteur](https://github.com/anotherj4ck/auteur) : mes trois univers de fiction, avec galeries de personnages.
 - [Le Codex du Greatland](https://anotherj4ck.github.io/auteur/codex.html) : l'archive illustrée de mon univers de fantasy.
 - [Ego](https://github.com/anotherj4ck/ego) : un chatbot narratif où l'on affronte l'IA de mon roman *Ascendant*, avec une question libre traitée par une IA via un Cloudflare Worker.
 

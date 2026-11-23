@@ -79,8 +79,8 @@
       "type": "project",
       "hub": "ecriture",
       "title": "Site d'auteur",
-      "short": "Mes quatre univers de fiction, en un seul site.",
-      "description": "Ascendant, Le Labyrinthe des Âmes, Les Récits du Greatland et Ankoria 2099 : pour chaque histoire, un extrait, un résumé et une ambiance visuelle propre. Les personnages s'ouvrent dans une visionneuse avec leur fiche.",
+      "short": "Mes trois univers de fiction, en un seul site.",
+      "description": "Ascendant, Les Récits du Greatland et Ankoria 2099 : pour chaque histoire, un extrait, un résumé et une ambiance visuelle propre. Les personnages s'ouvrent dans une visionneuse avec leur fiche.",
       "tech": [
         "HTML/CSS",
         "JavaScript"
