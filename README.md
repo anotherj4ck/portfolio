@@ -14,6 +14,7 @@ Mon portfolio, sous forme de graphe 3D vivant. Trois sphères au centre : **Dév
 - Des petits « paquets » lumineux circulent sur les liens, en clin d'œil au réseau.
 - La sphère rouge, **Ego**, lance des arcs électriques au survol. Un clic, et il prend le contrôle de l'interface (titre brouillé, texte découpé, sphères éteintes), puis te parle sur un écran noir avant d'ouvrir son site. Sans aucun flash, et réduit à un simple fondu si le système demande moins d'animations.
 - L'emprise d'Ego : un fil rouge presque invisible le relie à chaque nœud du graphe, et chaque nœud porte un minuscule implant rouge qui bat à l'unisson avec son cœur. Au survol d'Ego, les fils s'allument en vague ; le reste du temps, une impulsion court parfois vers un nœud au hasard.
+- Un bouton **Recentrer** remet la vue et les sphères comme au chargement, en un court glissement (instantané si le système demande moins d'animations). Pratique quand on a trop tourné ou zoomé.
 - Une **vue liste** sans 3D, pour aller vite, pour le clavier et les lecteurs d'écran.
 - Sur téléphone, le toucher remplace le survol (premier tap sur Ego : les arcs ; second tap : l'effet) et les sphères s'empilent en colonne.
 - Si le système demande de réduire les animations, la scène reste immobile.
@@ -37,6 +38,15 @@ Tout le contenu est dans [`graph.json`](graph.json). Le code n'a pas besoin de c
   "repo": "https://github.com/anotherj4ck/mon-projet"
 }
 ```
+
+Le champ facultatif `siteLabel` change le texte du bouton principal, qui vaut « Voir le site » par défaut. Par exemple, pour un logiciel à installer dont `site` pointe vers la page de téléchargement :
+
+```json
+"site": "https://github.com/anotherj4ck/LuxMonitor/releases/latest",
+"siteLabel": "Télécharger"
+```
+
+Le même texte est utilisé dans la fiche et dans la vue liste.
 
 2. Relie-le à sa sphère et à ses compétences dans `links` :
 

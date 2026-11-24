@@ -75,6 +75,22 @@
       "repo": "https://github.com/anotherj4ck/simulation-assistance-tickets"
     },
     {
+      "id": "luxmonitor",
+      "type": "project",
+      "hub": "dev",
+      "title": "Lux Monitor",
+      "short": "Un moniteur système pour Windows, zéro configuration.",
+      "description": "Un widget qui se fond dans le fond d'écran : processeur, carte graphique, RAM, disques, températures et FPS. Chaque mesure est cliquable et ouvre le bon outil (Explorateur, Gestionnaire des tâches, NVIDIA App, assistant de pilotes Intel ou AMD). Neuf thèmes, trois dispositions, un mode jeu toujours au premier plan, français et anglais. Logiciel libre sous GPL-3.0, avec une politique de sécurité publiée.",
+      "tech": [
+        "C#",
+        "WPF",
+        ".NET"
+      ],
+      "site": "https://github.com/anotherj4ck/LuxMonitor/releases/latest",
+      "siteLabel": "Télécharger",
+      "repo": "https://github.com/anotherj4ck/LuxMonitor"
+    },
+    {
       "id": "auteur",
       "type": "project",
       "hub": "ecriture",
@@ -161,6 +177,16 @@
       "id": "cf-workers",
       "type": "skill",
       "title": "Cloudflare Workers"
+    },
+    {
+      "id": "csharp",
+      "type": "skill",
+      "title": "C# / WPF"
+    },
+    {
+      "id": "supervision",
+      "type": "skill",
+      "title": "Supervision Windows"
     }
   ],
   "links": [
@@ -318,6 +344,18 @@
     {
       "source": "ego",
       "target": "cf-workers"
+    },
+    {
+      "source": "dev",
+      "target": "luxmonitor"
+    },
+    {
+      "source": "luxmonitor",
+      "target": "csharp"
+    },
+    {
+      "source": "luxmonitor",
+      "target": "supervision"
     }
   ]
 }

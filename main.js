@@ -69,6 +69,8 @@
   const K_SPRING = 0.035;
   const K_ANCHOR = 0.06;
   const DAMPING = 0.86;
+  const PHI_HOME = Math.PI / 2 - 0.18; // angle vertical de la caméra au chargement (légèrement au-dessus)
+  const RECENTER_MS = 800;             // durée du retour en place (bouton Recentrer)
 
   /* ---------- Chargement des données ---------- */
   async function loadData() {
@@ -1114,7 +1116,7 @@
     /* ---------- Caméra ---------- */
     const cam = {
       target: new THREE.Vector3(), wantTarget: new THREE.Vector3(), center: new THREE.Vector3(),
-      theta: 0, phi: Math.PI / 2 - 0.18, radius: 100,
+      theta: 0, phi: PHI_HOME, radius: 100,
       zoom: 1, focusZoom: 1, fit: 100,
       shiftX: 0, shiftY: 0, wantShiftX: 0, wantShiftY: 0, // décalage écran quand la carte est ouverte
       focused: false,
@@ -1300,9 +1302,11 @@
     /* ---------- Carte d'information ---------- */
     const card = $('#card'), cardBody = $('#card-body');
 
+    // Boutons d'un projet, partagés par la fiche et la vue liste.
+    // « siteLabel » (facultatif) remplace « Voir le site », par exemple « Télécharger ».
     function projectActions(p) {
       return el('div', { class: 'actions' },
-        linkButton('Voir le site', p.site, true),
+        linkButton(p.siteLabel || 'Voir le site', p.site, true),
         linkButton('Voir le code', p.repo, false));
     }
 
@@ -1405,7 +1409,7 @@
             for (const t of p.tech) chips.append(el('li', { text: t }));
             li.append(chips);
           }
-          const act = el('div', { class: 'actions' }, linkButton('Voir le site', p.site, true), linkButton('Voir le code', p.repo, false));
+          const act = projectActions(p);
           if (act.childElementCount) li.append(act);
           ul.append(li);
         }
@@ -1592,6 +1596,7 @@
       pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
       lastInteraction = performance.now();
       intro = null;
+      recenter = null; // le visiteur reprend la main pendant le retour en place
       if (pointers.size === 2) {
         const [p1, p2] = [...pointers.values()];
         if (dragNode) dragNode = null;
@@ -1659,8 +1664,74 @@
     canvas.addEventListener('wheel', (ev) => {
       ev.preventDefault();
       lastInteraction = performance.now();
+      recenter = null;
       cam.zoom = THREE.MathUtils.clamp(cam.zoom * Math.exp(ev.deltaY * 0.001), 0.45, 2.2);
     }, { passive: false });
+
+    /* ---------- Bouton « Recentrer » ---------- */
+    // Remet la caméra comme au chargement et chaque nœud à sa place, en 0,8 s.
+    // Les places visées sont calculées comme au chargement : on part des ancrages
+    // (sphères) et des nids (autres nœuds), et on laisse la physique se poser.
+    // Viser directement les nids ne suffirait pas : plusieurs nœuds partagent le même nid,
+    // ils finiraient empilés au même point, là où la répulsion ne sait plus les écarter.
+    const TAU = Math.PI * 2;
+    const wrapAngle = (a) => a - TAU * Math.floor((a + Math.PI) / TAU); // ramené entre -π et π
+    const easeOutCubic = (t) => 1 - (1 - t) ** 3;
+    let recenter = null; // animation en cours : { t0, theta, phi, zoom, base, from: [], to: [] }
+
+    function settledPlaces() {
+      const saved = nodes.map((n) => n.pos.clone());
+      const rnd = (k) => (Math.random() - 0.5) * k;
+      for (const n of nodes) {
+        n.vel.set(0, 0, 0);
+        if (n.anchor) n.pos.copy(n.anchor);
+        else if (n.home) n.pos.copy(n.home).add(new THREE.Vector3(rnd(14), rnd(10), rnd(10)));
+      }
+      for (let i = 0; i < 400; i++) physicsStep(0, false);
+      const places = nodes.map((n) => n.pos.clone());
+      nodes.forEach((n, i) => { n.pos.copy(saved[i]); n.vel.set(0, 0, 0); });
+      return places;
+    }
+
+    function startRecenter() {
+      if (fx.on) return; // pas pendant l'effet d'Ego
+      select(null);
+      armed = null;
+      dragNode = null;
+      gesture = null;
+      canvas.classList.remove('is-dragging');
+      const to = settledPlaces();
+      if (REDUCED) {
+        // Animations réduites : directement à l'arrivée
+        nodes.forEach((n, i) => { n.pos.copy(to[i]); n.vel.set(0, 0, 0); });
+        cam.theta = 0; cam.phi = PHI_HOME; cam.zoom = 1; baseTheta = 0;
+        recenter = null;
+        updateTargets();
+        return;
+      }
+      recenter = {
+        t0: performance.now(),
+        // Angles ramenés entre -π et π : la vue revient par le chemin le plus court.
+        // (baseTheta ne sert qu'à travers un sinus : le ramener ne change rien à l'écran)
+        theta: wrapAngle(cam.theta), phi: cam.phi, zoom: cam.zoom, base: wrapAngle(baseTheta),
+        from: nodes.map((n) => n.pos.clone()), to,
+      };
+      updateTargets();
+    }
+
+    // Une étape du retour en place, appelée à chaque image juste après la physique
+    function recenterStep(now) {
+      if (!recenter) return;
+      const r = recenter, t = Math.min(1, (now - r.t0) / RECENTER_MS), e = easeOutCubic(t);
+      cam.theta = r.theta * (1 - e);
+      cam.phi = r.phi + (PHI_HOME - r.phi) * e;
+      cam.zoom = r.zoom + (1 - r.zoom) * e;
+      baseTheta = r.base * (1 - e);
+      nodes.forEach((n, i) => { n.pos.lerpVectors(r.from[i], r.to[i], e); n.vel.set(0, 0, 0); });
+      if (t >= 1) recenter = null; // la physique reprend la main
+    }
+
+    $('#btn-recenter').addEventListener('click', startRecenter);
 
     /* ---------- Boucle d'animation ---------- */
     const v = new THREE.Vector3(), v2 = new THREE.Vector3(), tmpColor = new THREE.Color();
@@ -1672,6 +1743,7 @@
       time += dt;
 
       physicsStep(time, !REDUCED);
+      recenterStep(now);
 
       // Balancement lent de la caméra quand personne ne touche à rien
       if (!REDUCED && now - lastInteraction > 4000 && !selected) baseTheta += dt * 0.12;
