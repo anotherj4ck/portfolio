@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -29,6 +29,7 @@
 <p class="hint" id="hint">Survole une sphère pour voir ses projets, clique pour les ouvrir.</p>
 
 <div class="toolbar">
+  <button class="btn btn-icon" id="btn-recenter" type="button" title="Remettre la vue et les sphères en place"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3"/></svg><span>Recentrer</span></button>
   <button class="btn" id="btn-list" aria-expanded="false" aria-controls="list">Vue liste</button>
 </div>
 
@@ -64,6 +65,6 @@
 
 <!-- Three.js r128 : dernière version distribuée en script classique (UMD). Pas besoin d'outil de build. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="main.js?v=4"></script>
+<script src="main.js?v=5"></script>
 </body>
 </html>
