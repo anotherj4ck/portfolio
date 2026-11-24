@@ -91,6 +91,22 @@
       "repo": "https://github.com/anotherj4ck/LuxMonitor"
     },
     {
+      "id": "hellohuman",
+      "type": "project",
+      "hub": "dev",
+      "title": "Hello, human",
+      "short": "Une IA a écrit qu'elle était humaine : voici ce qui s'est passé dans sa tête.",
+      "description": "On a donné à GPT-2 le début de phrase « I am an AI and I », et il a répondu qu'il était un être humain. Le site rejoue en 3D l'enregistrement réel de ce qui s'est passé dans le modèle pendant qu'il écrivait. On voit le signal traverser les 12 couches et la prédiction se former mot après mot. Un clic sur une couche fige le calcul et montre ses têtes d'attention et ses neurones les plus actifs. Une courte introduction explique les bases aux débutants et se termine sur le vertige d'échelle face aux modèles actuels. Les données ont été extraites en Python avec PyTorch, et le rendu utilise des dizaines de milliers de particules calculées sur la carte graphique.",
+      "tech": [
+        "Python",
+        "PyTorch",
+        "Three.js",
+        "Shaders GLSL"
+      ],
+      "site": "https://anotherj4ck.github.io/hello-human/",
+      "repo": "https://github.com/anotherj4ck/hello-human"
+    },
+    {
       "id": "auteur",
       "type": "project",
       "hub": "ecriture",
@@ -187,6 +203,11 @@
       "id": "supervision",
       "type": "skill",
       "title": "Supervision Windows"
+    },
+    {
+      "id": "python",
+      "type": "skill",
+      "title": "Python / PyTorch"
     }
   ],
   "links": [
@@ -356,6 +377,22 @@
     {
       "source": "luxmonitor",
       "target": "supervision"
+    },
+    {
+      "source": "dev",
+      "target": "hellohuman"
+    },
+    {
+      "source": "hellohuman",
+      "target": "threejs"
+    },
+    {
+      "source": "hellohuman",
+      "target": "python"
+    },
+    {
+      "source": "hellohuman",
+      "target": "ia-gen"
     }
   ]
 }
